@@ -360,6 +360,7 @@ class DatabaseCreator {
         tx_id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
         source_id INT,
+        source VARCHAR(100),
         amount DECIMAL(15,2) NOT NULL,
         reason TEXT,
         time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -414,8 +415,10 @@ class DatabaseCreator {
         game_type VARCHAR(50),
         time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         winner INT,
-        FOREIGN KEY (table_id) REFERENCES Table_Info(table_id),
+        FOREIGN KEY (table_id) REFERENCES Table_Info(table_id)
+          ON DELETE CASCADE ON UPDATE CASCADE,
         FOREIGN KEY (winner) REFERENCES User(user_id)
+          ON DELETE SET NULL ON UPDATE CASCADE
       )
     `;
 
@@ -439,6 +442,7 @@ class DatabaseCreator {
         chat_history TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (reported_id) REFERENCES User(user_id)
+          ON DELETE CASCADE ON UPDATE CASCADE
       )
     `;
 
@@ -461,8 +465,10 @@ class DatabaseCreator {
         action VARCHAR(100),
         appeal_by INT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (report_id) REFERENCES Banned_Player(report_id),
+        FOREIGN KEY (report_id) REFERENCES Banned_Player(report_id)
+          ON DELETE CASCADE ON UPDATE CASCADE,
         FOREIGN KEY (appeal_by) REFERENCES User(user_id)
+          ON DELETE CASCADE ON UPDATE CASCADE
       )
     `;
 
