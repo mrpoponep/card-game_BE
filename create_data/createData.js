@@ -336,6 +336,7 @@ class DatabaseCreator {
         user_id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(100) NOT NULL UNIQUE,
         password VARCHAR(255) NOT NULL,
+        role ENUM('Player', 'Admin') DEFAULT 'Player',
         balance DECIMAL(15,2) DEFAULT 0,
         banned BOOLEAN DEFAULT FALSE,
         elo INT DEFAULT 1000

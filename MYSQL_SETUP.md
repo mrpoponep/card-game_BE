@@ -51,11 +51,6 @@ PORT=3000
 npm install mysql2 dotenv
 ```
 
-### 3. Chạy setup script:
-```bash
-node scripts/setupDatabase.js
-```
-
 ## 🧪 Test Connection
 ```javascript
 import db from './backend/model/DatabaseConnection.js';
