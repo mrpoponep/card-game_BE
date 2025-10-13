@@ -1,9 +1,6 @@
 import http from 'http';
 import { Server } from 'socket.io';
-import express from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
-import createGameRoom from './route/createRoomRoute.js';
 import app from './app.js';
 
 // Load environment variables
@@ -11,18 +8,8 @@ dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 
-// Khởi tạo Express app nếu chưa có
-const expressApp = app || express();
-
-// CORS middleware
-expressApp.use(cors());
-expressApp.use(express.json());
-
-// REST API Routes - PostgreSQL integration
-expressApp.use("/api/room", createGameRoom);
-
 // Create HTTP server
-const server = http.createServer(expressApp);
+const server = http.createServer(app);
 
 // Initialize Socket.io for real-time features
 const io = new Server(server, {

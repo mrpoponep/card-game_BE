@@ -3,6 +3,7 @@ import cors from 'cors';
 
 // Import routes
 import rankingRoute from './route/RankingRoute.js';
+import createGameRoom from './route/createRoomRoute.js';
 const app = express();
 
 // Configure CORS for Express
@@ -23,4 +24,6 @@ app.get('/', (req, res) => {
 // API Routes
 app.use('/api', rankingRoute);
 
+// REST API Routes - PostgreSQL integration
+app.use("/api/room", createGameRoom);
 export default app;
