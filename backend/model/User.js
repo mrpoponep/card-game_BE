@@ -66,6 +66,21 @@ class User {
 
   setBanned(banned) {
     this.banned = banned;
+    this.save();
+  }
+
+  setElo(elo) {
+    if (elo < 0) {
+      throw new Error('Elo cannot be negative');
+    }
+    this.elo = elo;
+    this.save();
+  }
+
+  async getRank() {
+    // Lấy vị trí xếp hạng của người chơi dựa trên elo
+    const rank = await db.query("SELECT COUNT(*) + 1 AS 'rank' FROM user WHERE elo > ? AND banned = false", [this.elo]);
+    return rank[0].rank;
   }
 
   // 🔄 SERIALIZATION
@@ -109,7 +124,7 @@ class User {
       return cachedUser;
     }
 
-    const dbRow = await db.query('SELECT * FROM user WHERE user_id = ?', [user_id]);
+    const dbRow = (await db.query('SELECT * FROM user WHERE user_id = ?', [user_id]))[0];
     if (dbRow) {
       const data = {
         user_id: dbRow.user_id,
@@ -128,8 +143,13 @@ class User {
    * Tìm user theo name
    */
   static async findByName(name) {
+    // Tìm user trong bộ nhớ trước
+    const cachedUser = User.instances.find(user => user.username === name);
+    if (cachedUser) {
+      return cachedUser;
+    }
+
     const dbRow = (await db.query('SELECT * FROM user WHERE username = ?', [name]))[0];
-    console.log(dbRow);
     if (dbRow) {
       const data = {
         user_id: dbRow.user_id,
@@ -142,6 +162,13 @@ class User {
       return new User(data);
     }
     return null;
+  }
+
+  static async listRankings(limit = 100) {
+    const dbRows = await db.query(
+      `SELECT * FROM user WHERE banned = false ORDER BY elo DESC LIMIT ${limit}`
+    );
+    return dbRows.map(row => new User(row));
   }
 
   /**
