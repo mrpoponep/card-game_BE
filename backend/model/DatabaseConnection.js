@@ -1,120 +1,208 @@
 // models/DatabaseConnection.js
+import mysql from 'mysql2/promise';
+import { currentConfig } from '../config/database.config.js';
 
 /**
- * Database Connection Handler
- * Giả lập database operations (bạn có thể thay thế bằng MySQL, PostgreSQL, MongoDB...)
+ * MySQL Database Connection Handler
+ * Kết nối thật sự với MySQL Database
  */
 class DatabaseConnection {
   constructor() {
-    this.users = new Map(); // Giả lập table users
-    this.games = new Map(); // Giả lập table games
-    this.nextUserId = 1;
-    this.nextGameId = 1;
+    this.pool = null;
+    this.isConnected = false;
   }
 
   // 🔍 QUERY METHODS
   async query(sql, params = []) {
-    console.log(`🗄️ DB Query: ${sql}`, params);
-    
-    // Giả lập các operations cơ bản
-    if (sql.includes('SELECT * FROM users WHERE id = ?')) {
-      const [id] = params;
-      return this.users.get(parseInt(id)) || null;
+    if (!this.isConnected) {
+      await this.connect();
     }
-    
-    if (sql.includes('SELECT * FROM users WHERE name = ?')) {
-      const [name] = params;
-      for (const user of this.users.values()) {
-        if (user.name === name) return user;
+
+    try {
+      console.log(`🗄️ MySQL Query: ${sql}`);
+      console.log('📋 Params:', params);
+      const [rows, fields] = await this.pool.execute(sql, params);
+      
+      // Handle different query types
+      if (sql.trim().toUpperCase().startsWith('SELECT')) {
+        return rows; // Multiple rows
       }
-      return null;
-    }
-    
-    if (sql.includes('INSERT INTO users')) {
-      const [name, password, elo, level, experience, avatar, joinedAt, lastActiveAt, status] = params;
-      const newUser = {
-        id: this.nextUserId++,
-        name,
-        password,
-        elo,
-        level,
-        experience,
-        avatar,
-        joined_at: joinedAt,
-        last_active_at: lastActiveAt,
-        status
-      };
-      this.users.set(newUser.id, newUser);
-      return { insertId: newUser.id };
-    }
-    
-    if (sql.includes('UPDATE users')) {
-      const [name, password, elo, level, experience, avatar, lastActiveAt, status, id] = params;
-      const user = this.users.get(parseInt(id));
-      if (user) {
-        Object.assign(user, {
-          name, password, elo, level, experience, avatar,
-          last_active_at: lastActiveAt, status
-        });
-        return { affectedRows: 1 };
+      
+      if (sql.trim().toUpperCase().startsWith('INSERT')) {
+        return {
+          insertId: rows.insertId,
+          affectedRows: rows.affectedRows
+        };
       }
-      return { affectedRows: 0 };
+      
+      if (sql.trim().toUpperCase().startsWith('UPDATE') || 
+          sql.trim().toUpperCase().startsWith('DELETE')) {
+        return {
+          affectedRows: rows.affectedRows,
+          changedRows: rows.changedRows || 0
+        };
+      }
+      
+      return rows;
+      
+    } catch (error) {
+      console.error('❌ MySQL Query Error:', error.message);
+      throw error;
     }
-    
-    if (sql.includes('DELETE FROM users WHERE id = ?')) {
-      const [id] = params;
-      const deleted = this.users.delete(parseInt(id));
-      return { affectedRows: deleted ? 1 : 0 };
-    }
-    
-    if (sql.includes('SELECT * FROM users ORDER BY elo DESC')) {
-      const [limit, offset] = params;
-      const allUsers = Array.from(this.users.values())
-        .sort((a, b) => b.elo - a.elo)
-        .slice(offset, offset + limit);
-      return allUsers;
-    }
-    
-    throw new Error(`Unsupported query: ${sql}`);
   }
 
-  // 🔧 UTILITY METHODS
+  // 🔧 CONNECTION METHODS
   async connect() {
-    console.log('🔗 Database connected');
-    return this;
+    try {
+      if (this.isConnected) {
+        console.log('🔗 Already connected to MySQL');
+        return this;
+      }
+
+      console.log('🔄 Connecting to MySQL...');
+      console.log('📍 Host:', currentConfig.host);
+      console.log('🗄️ Database:', currentConfig.database);
+      
+      // Create connection pool
+      this.pool = mysql.createPool({
+        host: currentConfig.host,
+        port: currentConfig.port,
+        user: currentConfig.user,
+        password: currentConfig.password,
+        database: currentConfig.database,
+        connectionLimit: currentConfig.connectionLimit,
+        charset: currentConfig.charset,
+        timezone: currentConfig.timezone,
+        dateStrings: currentConfig.dateStrings,
+        supportBigNumbers: currentConfig.supportBigNumbers,
+        bigNumberStrings: currentConfig.bigNumberStrings,
+        ssl: currentConfig.ssl
+      });
+
+      // Test connection
+      const connection = await this.pool.getConnection();
+      await connection.ping();
+      connection.release();
+      
+      this.isConnected = true;
+      console.log('✅ MySQL connected successfully!');
+      
+      return this;
+      
+    } catch (error) {
+      console.error('❌ MySQL Connection Error:', error.message);
+      this.isConnected = false;
+      throw error;
+    }
   }
 
   async disconnect() {
-    console.log('❌ Database disconnected');
+    try {
+      if (!this.isConnected || !this.pool) {
+        console.log('⚠️ No active MySQL connection to close');
+        return;
+      }
+
+      await this.pool.end();
+      this.isConnected = false;
+      console.log('❌ MySQL disconnected');
+      
+    } catch (error) {
+      console.error('❌ Error disconnecting MySQL:', error.message);
+      throw error;
+    }
   }
 
+  // 🔄 TRANSACTION METHODS
   async beginTransaction() {
-    console.log('🔄 Transaction started');
+    const connection = await this.pool.getConnection();
+    await connection.beginTransaction();
+    console.log('🔄 MySQL Transaction started');
+    return connection;
   }
 
-  async commit() {
-    console.log('✅ Transaction committed');
+  async transactionQuery(connection, sql, params = []) {
+    try {
+      console.log(`🗄️ MySQL Transaction Query: ${sql}`, params);
+      const [rows, fields] = await connection.execute(sql, params);
+      
+      // Handle different query types
+      if (sql.trim().toUpperCase().startsWith('SELECT')) {
+        return rows; // Multiple rows
+      }
+      if (sql.trim().toUpperCase().startsWith('INSERT')) {
+        return {
+          insertId: rows.insertId,
+          affectedRows: rows.affectedRows
+        };
+      }
+      if (sql.trim().toUpperCase().startsWith('UPDATE') ||
+          sql.trim().toUpperCase().startsWith('DELETE')) {
+        return {
+          affectedRows: rows.affectedRows,
+          changedRows: rows.changedRows || 0
+        };
+      }
+      return rows;
+    } catch (error) {
+      console.error('❌ MySQL Transaction Query Error:', error.message);
+      console.error('📝 SQL:', sql);
+      console.error('📋 Params:', params);
+      throw error;
+    }
   }
 
-  async rollback() {
-    console.log('↩️ Transaction rolled back');
+  async commit(connection) {
+    await connection.commit();
+    connection.release();
+    console.log('✅ MySQL Transaction committed');
   }
 
-  // 📊 DEBUG METHODS
-  getAllUsers() {
-    return Array.from(this.users.values());
+  async rollback(connection) {
+    await connection.rollback();
+    connection.release();
+    console.log('↩️ MySQL Transaction rolled back');
   }
 
-  getUserCount() {
-    return this.users.size;
+
+  // 📊 UTILITY METHODS
+  async getConnectionStatus() {
+    try {
+      if (!this.pool) return { connected: false };
+      
+      const connection = await this.pool.getConnection();
+      const [rows] = await connection.execute('SELECT 1 as ping');
+      connection.release();
+      
+      return {
+        connected: true,
+        config: {
+          host: currentConfig.host,
+          database: currentConfig.database,
+          connectionLimit: currentConfig.connectionLimit
+        }
+      };
+    } catch (error) {
+      return { connected: false, error: error.message };
+    }
   }
 
-  clearAllData() {
-    this.users.clear();
-    this.games.clear();
-    this.nextUserId = 1;
-    this.nextGameId = 1;
-    console.log('🗑️ All data cleared');
+
+  // ⚠️ DANGEROUS: Only for development
+  async clearAllData() {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Cannot clear data in production environment!');
+    }
+    
+    await this.query('SET FOREIGN_KEY_CHECKS = 0');
+    await this.query('TRUNCATE TABLE user');
+    await this.query('TRUNCATE TABLE appeal');
+    await this.query('TRUNCATE TABLE banned_player');
+    await this.query('TRUNCATE TABLE table_info');
+    await this.query('TRUNCATE TABLE transactions');
+    await this.query('TRUNCATE TABLE game_history');
+    await this.query('SET FOREIGN_KEY_CHECKS = 1');
+    console.log('🗑️ All data cleared from MySQL database');
   }
 }
 

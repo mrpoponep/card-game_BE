@@ -9,34 +9,35 @@ class User {
   static instances = [];
 
   constructor({
-    id = null,
-    name,
-    password = null, // Hash password, không lưu plain text
-    elo = 1000, // Điểm elo khởi đầu
-    level = 1,
-    experience = 0,
-    avatar = null,
-    joinedAt = new Date(),
-    lastActiveAt = new Date(),
-    status = 'offline', // offline, online, in-game, banned
+    user_id = null,
+    username = null,
+    password = null,
+    balance = 0,
+    banned = false,
+    elo = 1000,
   }) {
-    if (id) {
-      const existing = User.instances.find(user => user.id === id);
-      if (existing) {
-        return existing;
+    if (user_id) {
+      if (username === null) {
+        const dbExisting = User.findById(user_id);
+        if (dbExisting) {
+          return dbExisting;
+        }
       }
+      this.user_id = user_id;
+      this.username = username; 
+      this.password = password;
+      this.balance = balance;
+      this.banned = banned;
+      this.elo = elo;
+      User.instances.push(this);
+      return this;
     }
-
-    this.id = id;
-    this.name = name;
+    
+    this.username = username;
     this.password = password;
+    this.balance = balance;
+    this.banned = banned;
     this.elo = elo;
-    this.level = level;
-    this.experience = experience;
-    this.avatar = avatar;
-    this.joinedAt = joinedAt;
-    this.lastActiveAt = lastActiveAt;
-    this.status = status;
 
     // Validate dữ liệu khi tạo instance
     this.validate();
@@ -46,16 +47,12 @@ class User {
 
   // 🔍 VALIDATION METHODS
   validate() {
-    if (!this.name || this.name.trim().length < 3) {
+    if (!this.username || this.username.length < 3) {
       throw new Error('User name must be at least 3 characters long');
     }
 
     if (this.elo < 0) {
       throw new Error('Elo cannot be negative');
-    }
-
-    if (!['offline', 'online', 'in-game', 'banned'].includes(this.status)) {
-      throw new Error('Invalid user status');
     }
   }
 
@@ -67,32 +64,8 @@ class User {
     }
   }
 
-  get experienceToNextLevel() {
-    const requiredExp = this.level * 1000; // 1000 exp per level
-    return Math.max(0, requiredExp - this.experience);
-  }
-
-  checkLevelUp() {
-    const requiredExp = this.level * 1000;
-    if (this.experience >= requiredExp) {
-      this.level++;
-      this.experience -= requiredExp; // Carry over excess exp
-      return true; // Level up occurred
-    }
-    return false;
-  }
-
-  updateStatus(newStatus) {
-    if (!['offline', 'online', 'in-game', 'banned'].includes(newStatus)) {
-      throw new Error('Invalid status');
-    }
-    if (newStatus === 'offline') {
-      this.lastActiveAt = new Date();
-    }
-    if (newStatus === 'banned' && this.status !== 'offline') {
-      this.lastActiveAt = new Date();
-    }
-    this.status = newStatus;
+  setBanned(banned) {
+    this.banned = banned;
   }
 
   // 🔄 SERIALIZATION
@@ -100,16 +73,11 @@ class User {
     return {
       id: this.id,
       name: this.name,
-      elo: this.elo,
       gamesPlayed: this.gamesPlayed,
       winRate: this.winRate,
-      level: this.level,
-      experience: this.experience,
-      experienceToNextLevel: this.experienceToNextLevel,
-      avatar: this.avatar,
-      joinedAt: this.joinedAt,
-      lastActiveAt: this.lastActiveAt,
-      status: this.status,
+      balance: this.balance,
+      banned: this.banned,
+      elo: this.elo,
     };
   }
 
@@ -121,7 +89,7 @@ class User {
   async save() {
     this.validate(); // Validate trước khi save
     
-    if (this.id) {
+    if (this.user_id) {
       // UPDATE existing user
       return await User.updateInDatabase(this);
     } else {
@@ -130,38 +98,50 @@ class User {
     }
   }
 
-  // 🔧 STATIC FACTORY METHODS
-  static fromDatabase(dbRow) {
-    return new User({
-      id: dbRow.id,
-      name: dbRow.name,
-      password: dbRow.password,
-      elo: dbRow.elo || 1000,
-      level: dbRow.level || 1,
-      experience: dbRow.experience || 0,
-      avatar: dbRow.avatar,
-      joinedAt: new Date(dbRow.joined_at),
-      lastActiveAt: new Date(dbRow.last_active_at),
-      status: dbRow.status || 'offline',
-    });
-  }
-
   // 🗄️ STATIC DATABASE METHODS
   /**
    * Tìm user theo ID
    */
-  static async findById(id) {
-    // TODO: Implement database query
-    const dbRow = await db.query('SELECT * FROM users WHERE id = ?', [id]);
-    return dbRow ? User.fromDatabase(dbRow) : null;
+  static async findById(user_id) {
+    // Tìm user trong bộ nhớ trước
+    const cachedUser = User.instances.find(user => user.user_id === user_id);
+    if (cachedUser) {
+      return cachedUser;
+    }
+
+    const dbRow = await db.query('SELECT * FROM user WHERE user_id = ?', [user_id]);
+    if (dbRow) {
+      const data = {
+        user_id: dbRow.user_id,
+        username: dbRow.username,
+        password: dbRow.password,
+        balance: dbRow.balance,
+        banned: dbRow.banned,
+        elo: dbRow.elo,
+      };
+      return new User(data);
+    }
+    return null;
   }
 
   /**
    * Tìm user theo name
    */
   static async findByName(name) {
-    const dbRow = await db.query('SELECT * FROM users WHERE name = ?', [name]);
-    return dbRow ? User.fromDatabase(dbRow) : null;
+    const dbRow = (await db.query('SELECT * FROM user WHERE username = ?', [name]))[0];
+    console.log(dbRow);
+    if (dbRow) {
+      const data = {
+        user_id: dbRow.user_id,
+        username: dbRow.username,
+        password: dbRow.password,
+        balance: dbRow.balance,
+        banned: dbRow.banned,
+        elo: dbRow.elo,
+      };
+      return new User(data);
+    }
+    return null;
   }
 
   /**
@@ -169,23 +149,17 @@ class User {
    */
   static async insertIntoDatabase(user) {
     const query = `
-      INSERT INTO users (name, password, elo, level, experience, avatar, joined_at, last_active_at, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO user (username, password, elo)
+      VALUES (?, ?, ?)
     `;
     
     const result = await db.query(query, [
-      user.name,
+      user.username,
       user.password,
       user.elo,
-      user.level,
-      user.experience,
-      user.avatar,
-      user.joinedAt,
-      user.lastActiveAt,
-      user.status
     ]);
     
-    user.id = result.insertId;
+    user.user_id = result.insertId;
     return user;
   }
 
@@ -194,22 +168,18 @@ class User {
    */
   static async updateInDatabase(user) {
     const query = `
-      UPDATE users 
-      SET name = ?, password = ?, elo = ?, level = ?, experience = ?, 
-          avatar = ?, last_active_at = ?, status = ?
-      WHERE id = ?
+      UPDATE user
+      SET username = ?, password = ?, elo = ?, balance = ?, banned = ?
+      WHERE user_id = ?
     `;
     
     await db.query(query, [
-      user.name,
+      user.username,
       user.password,
       user.elo,
-      user.level,
-      user.experience,
-      user.avatar,
-      user.lastActiveAt,
-      user.status,
-      user.id
+      user.balance,
+      user.banned,
+      user.user_id
     ]);
     
     return user;
