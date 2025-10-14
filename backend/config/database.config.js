@@ -49,7 +49,7 @@ export const environments = {
     ...dbConfig,
     database: 'poker_system',
     ssl: {
-      rejectUnauthorized: true
+      rejectUnauthorized: false
     }
   },
   

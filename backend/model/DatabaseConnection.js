@@ -19,8 +19,10 @@ class DatabaseConnection {
     }
 
     try {
-      console.log(`🗄️ MySQL Query: ${sql}`);
-      console.log('📋 Params:', params);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`🗄️ MySQL Query: ${sql}`);
+        console.log('📋 Params:', params);
+      }
       const [rows, fields] = await this.pool.execute(sql, params);
       
       // Handle different query types
@@ -55,7 +57,9 @@ class DatabaseConnection {
   async connect() {
     try {
       if (this.isConnected) {
-        console.log('🔗 Already connected to MySQL');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('🔗 Already connected to MySQL');
+        }
         return this;
       }
 
@@ -117,13 +121,17 @@ class DatabaseConnection {
   async beginTransaction() {
     const connection = await this.pool.getConnection();
     await connection.beginTransaction();
-    console.log('🔄 MySQL Transaction started');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔄 MySQL Transaction started');
+    }
     return connection;
   }
 
   async transactionQuery(connection, sql, params = []) {
     try {
-      console.log(`🗄️ MySQL Transaction Query: ${sql}`, params);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`🗄️ MySQL Transaction Query: ${sql}`, params);
+      }
       const [rows, fields] = await connection.execute(sql, params);
       
       // Handle different query types
@@ -155,13 +163,17 @@ class DatabaseConnection {
   async commit(connection) {
     await connection.commit();
     connection.release();
-    console.log('✅ MySQL Transaction committed');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ MySQL Transaction committed');
+    }
   }
 
   async rollback(connection) {
     await connection.rollback();
     connection.release();
-    console.log('↩️ MySQL Transaction rolled back');
+    if (process.env.NODE_ENV !== 'production') {  
+      console.log('↩️ MySQL Transaction rolled back');
+    }
   }
 
 

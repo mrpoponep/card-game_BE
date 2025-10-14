@@ -10,8 +10,8 @@ class RankingService {
 
     let rankings = listRankings.map((player, index) => ({
         rank: index + 1,
-        playerId: player.id,
-        playerName: player.name,
+        userId: player.user_id,
+        username: player.username,
         elo: player.elo,
       }));
     
