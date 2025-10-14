@@ -32,23 +32,23 @@ class RankingService {
   }
 
   static async getPlayerRanking(playerId) {
-    const player = await User.findById(parseInt(playerId));
-    if (!player) {
+    const user = await User.findById(parseInt(playerId));
+    if (!user) {
       throw new Error('Player not found');
     }
-    if (player.banned) {
+    if (user.banned) {
       return {
         rank: 'Người chơi bị cấm',
-        userId: player.user_id,
-        username: player.username,
-        elo: player.elo,
+        userId: user.user_id,
+        username: user.username,
+        elo: user.elo,
       };
     }
     return {
-      rank: await player.getRank(),
-      userId: player.user_id,
-      username: player.username,
-      elo: player.elo,
+      rank: await user.getRank(),
+      userId: user.user_id,
+      username: user.username,
+      elo: user.elo,
     };
   }
 }
