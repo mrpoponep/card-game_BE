@@ -36,11 +36,18 @@ class RankingService {
     if (!player) {
       throw new Error('Player not found');
     }
-
+    if (player.banned) {
+      return {
+        rank: 'Người chơi bị cấm',
+        userId: player.user_id,
+        username: player.username,
+        elo: player.elo,
+      };
+    }
     return {
       rank: await player.getRank(),
-      playerId: player.id,
-      playerName: player.name,
+      userId: player.user_id,
+      username: player.username,
       elo: player.elo,
     };
   }
