@@ -36,6 +36,7 @@ export default class AuthController {
     }
     // 3. Tạo access token
     const accessToken = jwt.sign({ userId: user.user_id, username: user.username, role: user.role }, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
+    
     // 4. Tạo refresh token
     const refreshToken = crypto.randomBytes(64).toString('hex');
     const refreshTokenHash = hashToken(refreshToken);
@@ -65,13 +66,13 @@ export default class AuthController {
     }
     const refreshTokenHash = hashToken(refreshToken);
     // 1. Tìm token trong DB
-    const [tokens] = await db.query('SELECT * FROM refresh_tokens WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > NOW()', [refreshTokenHash]);
+    const tokens = await db.query('SELECT * FROM refresh_tokens WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > NOW()', [refreshTokenHash]);
     const tokenRow = tokens && tokens[0];
     if (!tokenRow) {
       return res.status(401).json({ success: false, message: 'Refresh token không hợp lệ hoặc đã hết hạn' });
     }
     // 2. Tìm user
-    const [users] = await db.query('SELECT * FROM User WHERE user_id = ?', [tokenRow.user_id]);
+    const users = await db.query('SELECT * FROM User WHERE user_id = ?', [tokenRow.user_id]);
     const user = users && users[0];
     if (!user) {
       return res.status(401).json({ success: false, message: 'Tài khoản không tồn tại' });

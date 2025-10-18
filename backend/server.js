@@ -1,10 +1,9 @@
+// Load environment variables FIRST
+import './config/dotenv-config.js';
+
 import http from 'http';
 import { Server } from 'socket.io';
-import dotenv from 'dotenv';
 import app from './app.js';
-
-// Load environment variables
-dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 
