@@ -16,3 +16,9 @@ DB_SSL=false
 # Application
 NODE_ENV=test
 PORT=3000
+
+# Auth secrets
+ACCESS_TOKEN_SECRET=your_access_token_secret_here
+REFRESH_TOKEN_SECRET=your_refresh_token_secret_here
+ACCESS_TOKEN_EXPIRES_IN=15m
+REFRESH_TOKEN_EXPIRES_DAYS=30

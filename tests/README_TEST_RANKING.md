@@ -15,7 +15,7 @@ npm run test:ranking
 2. ✅ Hiển thị Top 10 ELO
 3. ✅ Tự động khởi động server ở môi trường **TEST** (`http://localhost:3000`)
 4. ⏳ Server chạy và chờ bạn test
-5. 🛑 Nhấn `Ctrl+C` để dừng
+5. 🛑 Nhấn `q + Enter` để dừng
 6. 🧹 Tự động xóa 100 người chơi test
 7. 👋 Thoát
 
@@ -51,7 +51,7 @@ npm run test:ranking
 🌐 Truy cập: http://localhost:3000
 🗄️  Database: poker_system_test
 
-⚠️  Nhấn Ctrl+C để dừng server và dọn dẹp dữ liệu test...
+⚠️  Nhấn q+Enter để dừng server và dọn dẹp dữ liệu test...
 ```
 
 ## 🔧 Chi tiết kỹ thuật
@@ -66,7 +66,7 @@ npm run test:ranking
 
 ### Quy trình dọn dẹp:
 1. Lưu tất cả `user_id` khi INSERT
-2. Khi nhận signal `SIGINT` (Ctrl+C):
+2. Khi nhận signal `SIGINT` (q+Enter):
    - Dừng server process
    - DELETE tất cả user theo danh sách `user_id`
    - Disconnect database
@@ -82,7 +82,7 @@ npm run test:ranking
 
 1. **Database phải tồn tại** trước khi chạy test (chạy `npm run db:create:test`)
 2. **Port 3000 phải rảnh** để server có thể start
-3. **Nhớ nhấn Ctrl+C** để dọn dẹp, nếu không user test sẽ còn lại trong DB
+3. **Nhớ nhấn q+Enter** để dọn dẹp, nếu không user test sẽ còn lại trong DB
 4. Test chạy trên môi trường `test` (database: `poker_system_test`)
 5. **Dữ liệu test cách ly**: Không ảnh hưởng đến database development/production
 

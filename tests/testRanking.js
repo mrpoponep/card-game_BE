@@ -103,7 +103,7 @@ class RankingTest {
         console.log('✅ Server đã khởi động!');
         console.log('🌐 Truy cập: http://localhost:3000');
         console.log('🗄️  Database: poker_system_test');
-        console.log('\n⚠️  Nhấn Ctrl+C để dừng server và dọn dẹp dữ liệu test...\n');
+        console.log('\n⚠️  Nhấn q+Enter để dừng server và dọn dẹp dữ liệu test...\n');
         resolve();
       }, 3000);
     });
@@ -195,8 +195,6 @@ class RankingTest {
     
     // Lắng nghe tín hiệu SIGUSR2 để cleanup và thoát
     process.on('SIGUSR2', () => handleExit('SIGUSR2'));
-    // Nếu muốn giữ Ctrl+C chỉ dừng server mà không cleanup, có thể comment dòng dưới:
-    // process.on('SIGINT', () => handleExit('SIGINT (Ctrl+C)'));
     process.on('SIGTERM', () => handleExit('SIGTERM'));
     
     // Lắng nghe phím 'q' + Enter để cleanup và thoát
@@ -221,7 +219,7 @@ class RankingTest {
       await this.startServer();
       
       // Giữ process chạy
-      await new Promise(() => {}); // Chờ vô hạn cho đến khi Ctrl+C
+      await new Promise(() => {}); // Chờ vô hạn cho đến khi q+Enter
       
     } catch (error) {
       console.error('\n💥 Lỗi:', error.message);

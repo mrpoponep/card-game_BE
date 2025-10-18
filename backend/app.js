@@ -1,9 +1,15 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import { authenticateJWT } from './middleware/auth.js';
+import rateLimit from 'express-rate-limit';
 
 // Import routes
 import rankingRoute from './route/RankingRoute.js';
 import createGameRoom from './route/createRoomRoute.js';
+import authRoute from './route/AuthRoute.js';
 const app = express();
 
 // Configure CORS for Express
@@ -15,6 +21,15 @@ app.use(cors({
 // Basic middleware
 app.use(express.json());                        // Cho JSON data
 app.use(express.urlencoded({ extended: true })); // Cho form-urlencoded
+app.use(cookieParser());
+
+// Rate limit: 100 requests/15 phút mỗi IP
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { success: false, message: 'Bạn gửi quá nhiều yêu cầu, vui lòng thử lại sau.' }
+});
+app.use('/api', apiLimiter);
 
 // 🔍 Request & Response logger middleware
 app.use((req, res, next) => {
@@ -104,8 +119,28 @@ app.get('/', (req, res) => {
 });
 
 // API Routes
-app.use('/api', rankingRoute);
+app.use('/api/auth', authRoute);
 
-// REST API Routes - PostgreSQL integration
+// Bảo vệ tất cả các route /api ngoại trừ /api/auth/login, /api/auth/refresh, /api/auth/logout
+// Bảo vệ tất cả các route /api ngoại trừ /api/auth/login, /api/auth/refresh, /api/auth/logout
+app.use((req, res, next) => {
+  const openAuthPaths = [
+    '/api/auth/login',
+    '/api/auth/refresh',
+    '/api/auth/logout'
+  ];
+  // Nếu path bắt đầu bằng 1 trong các openAuthPaths thì bỏ qua xác thực
+  if (openAuthPaths.some(path => req.path === path || req.path.startsWith(path + '/'))) {
+    return next();
+  }
+  return authenticateJWT(req, res, next);
+});
+
+app.use('/api', rankingRoute);
 app.use("/api/room", createGameRoom);
+
+// Example protected route (đặt sau khi cấu hình middleware)
+app.get('/api/protected', authenticateJWT, (req, res) => {
+  res.json({ success: true, message: 'Bạn đã xác thực thành công!', user: req.user });
+});
 export default app;
