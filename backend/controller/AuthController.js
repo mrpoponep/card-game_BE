@@ -2,11 +2,13 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import db from '../model/DatabaseConnection.js';
 import crypto from 'crypto';
+import { sendPasswordResetOTP } from '../services/emailService.js';
 
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'access_secret';
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'refresh_secret';
 const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN || '15m';
 const REFRESH_TOKEN_EXPIRES_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRES_DAYS, 10) || 30;
+const RESET_PASSWORD_TOKEN_EXPIRES_MINUTES = parseInt(process.env.RESET_PASSWORD_TOKEN_EXPIRES_MINUTES, 10) || 15;
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -29,8 +31,7 @@ export default class AuthController {
       return res.status(401).json({ success: false, message: 'Sai tên đăng nhập hoặc mật khẩu' });
     }
     // 2. Kiểm tra mật khẩu
-    // const ok = await bcrypt.compare(password, user.password);
-    const ok = password === user.password;
+    const ok = await bcrypt.compare(password, user.password);
     if (!ok) {
       return res.status(401).json({ success: false, message: 'Sai tên đăng nhập hoặc mật khẩu' });
     }
@@ -66,7 +67,7 @@ export default class AuthController {
     }
     const refreshTokenHash = hashToken(refreshToken);
     // 1. Tìm token trong DB
-    const tokens = await db.query('SELECT * FROM refresh_tokens WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > NOW()', [refreshTokenHash]);
+    const tokens = await db.query('SELECT * FROM refresh_tokens WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > UTC_TIMESTAMP()', [refreshTokenHash]);
     const tokenRow = tokens && tokens[0];
     if (!tokenRow) {
       return res.status(401).json({ success: false, message: 'Refresh token không hợp lệ hoặc đã hết hạn' });
@@ -101,9 +102,119 @@ export default class AuthController {
     const refreshToken = req.cookies?.refresh_token;
     if (refreshToken) {
       const refreshTokenHash = hashToken(refreshToken);
-      await db.query('UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = ?', [refreshTokenHash]);
+      await db.query('UPDATE refresh_tokens SET revoked_at = UTC_TIMESTAMP() WHERE token_hash = ?', [refreshTokenHash]);
       res.clearCookie('refresh_token', { path: '/api/auth' });
     }
     res.json({ success: true, message: 'Đã đăng xuất' });
+  }
+
+  // Gửi mã OTP qua email (bước 1)
+  static async sendResetOTP(req, res) {
+    const { username } = req.body;
+    
+    if (!username) {
+      return res.status(400).json({ success: false, message: 'Vui lòng nhập tên đăng nhập' });
+    }
+
+    try {
+      // 1. Tìm user theo username
+      const users = await db.query('SELECT * FROM User WHERE username = ?', [username]);
+      const user = users && users[0];
+      
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'Tên đăng nhập không tồn tại' });
+      }
+
+      if (!user.email) {
+        return res.status(400).json({ success: false, message: 'Tài khoản này chưa có email. Vui lòng liên hệ quản trị viên' });
+      }
+
+      // 2. Tạo mã OTP 6 số
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const tokenHash = hashToken(otpCode);
+      const expiresAt = new Date(Date.now() + RESET_PASSWORD_TOKEN_EXPIRES_MINUTES * 60 * 1000);
+
+      // 3. Xóa các OTP cũ chưa dùng của user này
+      await db.query('DELETE FROM password_reset_tokens WHERE user_id = ? AND used_at IS NULL', [user.user_id]);
+
+      // 4. Lưu OTP hash vào DB
+      await db.query(
+        'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)',
+        [user.user_id, tokenHash, expiresAt]
+      );
+
+      // 5. Gửi email với OTP
+      const emailSent = await sendPasswordResetOTP(user.email, user.username, otpCode);
+      
+      if (!emailSent) {
+        console.error('Failed to send OTP email to:', user.email);
+        return res.status(500).json({ success: false, message: 'Không thể gửi email. Vui lòng thử lại sau' });
+      }
+
+      // Ẩn một phần email để bảo mật
+      const hiddenEmail = user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
+
+      res.json({ 
+        success: true, 
+        message: `Mã xác thực đã được gửi đến ${hiddenEmail}`,
+        email: hiddenEmail
+      });
+    } catch (error) {
+      console.error('Send OTP error:', error);
+      res.status(500).json({ success: false, message: 'Đã xảy ra lỗi, vui lòng thử lại sau' });
+    }
+  }
+
+  // Xác thực OTP và đặt lại mật khẩu (bước 2)
+  static async verifyOTPAndResetPassword(req, res) {
+    const { username, otp, newPassword } = req.body;
+
+    if (!username || !otp || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Thiếu thông tin' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Mật khẩu phải có ít nhất 6 ký tự' });
+    }
+
+    try {
+      // 1. Tìm user
+      const users = await db.query('SELECT * FROM User WHERE username = ?', [username]);
+      const user = users && users[0];
+
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'Tên đăng nhập không tồn tại' });
+      }
+
+      const tokenHash = hashToken(otp);
+
+      // 2. Tìm OTP trong DB (chưa dùng, chưa hết hạn)
+      const tokens = await db.query(
+        'SELECT * FROM password_reset_tokens WHERE user_id = ? AND token_hash = ? AND used_at IS NULL AND expires_at > UTC_TIMESTAMP()',
+        [user.user_id, tokenHash]
+      );
+      const tokenRow = tokens && tokens[0];
+
+      if (!tokenRow) {
+        return res.status(400).json({ success: false, message: 'Mã xác thực không đúng hoặc đã hết hạn' });
+      }
+
+      // 3. Hash mật khẩu mới
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      // 4. Cập nhật mật khẩu
+      await db.query('UPDATE User SET password = ? WHERE user_id = ?', [hashedPassword, user.user_id]);
+
+      // 5. Đánh dấu OTP đã dùng
+      await db.query('UPDATE password_reset_tokens SET used_at = UTC_TIMESTAMP() WHERE id = ?', [tokenRow.id]);
+
+      // 6. Revoke tất cả refresh tokens (đăng xuất tất cả thiết bị)
+      await db.query('UPDATE refresh_tokens SET revoked_at = UTC_TIMESTAMP() WHERE user_id = ?', [user.user_id]);
+
+      res.json({ success: true, message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại' });
+    } catch (error) {
+      console.error('Reset password error:', error);
+      res.status(500).json({ success: false, message: 'Đã xảy ra lỗi, vui lòng thử lại sau' });
+    }
   }
 }

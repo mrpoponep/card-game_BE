@@ -128,7 +128,9 @@ app.use((req, res, next) => {
   const openAuthPaths = [
     '/api/auth/login',
     '/api/auth/refresh',
-    '/api/auth/logout'
+    '/api/auth/logout',
+    '/api/auth/send-reset-otp',
+    '/api/auth/verify-otp-reset-password'
   ];
   // Nếu path bắt đầu bằng 1 trong các openAuthPaths thì bỏ qua xác thực
   if (openAuthPaths.some(path => req.path === path || req.path.startsWith(path + '/'))) {
