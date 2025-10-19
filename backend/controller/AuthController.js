@@ -2,13 +2,14 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import db from '../model/DatabaseConnection.js';
 import crypto from 'crypto';
-import { sendPasswordResetOTP } from '../services/emailService.js';
+import { sendPasswordResetOTP, sendEmailVerificationOTP } from '../services/emailService.js';
 
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'access_secret';
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'refresh_secret';
 const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN || '15m';
 const REFRESH_TOKEN_EXPIRES_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRES_DAYS, 10) || 30;
 const RESET_PASSWORD_TOKEN_EXPIRES_MINUTES = parseInt(process.env.RESET_PASSWORD_TOKEN_EXPIRES_MINUTES, 10) || 15;
+const ADMIN_CONTACT_EMAIL = process.env.ADMIN_CONTACT_EMAIL || 'admin@example.com';
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -30,11 +31,15 @@ export default class AuthController {
     if (!user) {
       return res.status(401).json({ success: false, message: 'Sai tên đăng nhập hoặc mật khẩu' });
     }
-    // 2. Kiểm tra mật khẩu
+    // 2. Kiểm tra mật khẩu và trạng thái bị ban
+    if (user.banned) {
+      return res.status(403).json({ success: false, message: `Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên qua email: ${ADMIN_CONTACT_EMAIL}` });
+    }
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) {
       return res.status(401).json({ success: false, message: 'Sai tên đăng nhập hoặc mật khẩu' });
     }
+    
     // 3. Tạo access token
     const accessToken = jwt.sign({ userId: user.user_id, username: user.username, role: user.role }, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
     
@@ -77,6 +82,9 @@ export default class AuthController {
     const user = users && users[0];
     if (!user) {
       return res.status(401).json({ success: false, message: 'Tài khoản không tồn tại' });
+    }
+    if (user.banned) {
+      return res.status(403).json({ success: false, message: `Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên qua email: ${ADMIN_CONTACT_EMAIL}` });
     }
     // 3. Rotate refresh token
     const newRefreshToken = crypto.randomBytes(64).toString('hex');
@@ -127,6 +135,11 @@ export default class AuthController {
 
       if (!user.email) {
         return res.status(400).json({ success: false, message: 'Tài khoản này chưa có email. Vui lòng liên hệ quản trị viên' });
+      }
+
+      // Kiểm tra tài khoản bị ban
+      if (user.banned) {
+        return res.status(403).json({ success: false, message: `Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên qua email: ${ADMIN_CONTACT_EMAIL}` });
       }
 
       // 2. Tạo mã OTP 6 số
@@ -186,6 +199,11 @@ export default class AuthController {
         return res.status(404).json({ success: false, message: 'Tên đăng nhập không tồn tại' });
       }
 
+      // Kiểm tra tài khoản bị ban
+      if (user.banned) {
+        return res.status(403).json({ success: false, message: `Tài khoản của bạn đã bị khóa. Không thể đặt lại mật khẩu. Vui lòng liên hệ quản trị viên qua email: ${ADMIN_CONTACT_EMAIL}` });
+      }
+
       const tokenHash = hashToken(otp);
 
       // 2. Tìm OTP trong DB (chưa dùng, chưa hết hạn)
@@ -214,6 +232,170 @@ export default class AuthController {
       res.json({ success: true, message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại' });
     } catch (error) {
       console.error('Reset password error:', error);
+      res.status(500).json({ success: false, message: 'Đã xảy ra lỗi, vui lòng thử lại sau' });
+    }
+  }
+
+  // Đăng ký tài khoản mới (chỉ cần username và password)
+  static async register(req, res) {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: 'Vui lòng nhập đầy đủ thông tin' });
+    }
+
+    if (username.length < 3) {
+      return res.status(400).json({ success: false, message: 'Tên đăng nhập phải có ít nhất 3 ký tự' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Mật khẩu phải có ít nhất 6 ký tự' });
+    }
+
+    try {
+      // 1. Kiểm tra username đã tồn tại chưa
+      const existingUsers = await db.query('SELECT * FROM User WHERE username = ?', [username]);
+      if (existingUsers && existingUsers.length > 0) {
+        return res.status(409).json({ success: false, message: 'Tên đăng nhập đã tồn tại' });
+      }
+
+      // 2. Hash mật khẩu
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // 3. Tạo user mới (không có email)
+      const result = await db.query(
+        'INSERT INTO User (username, password, role, balance, banned, elo) VALUES (?, ?, ?, ?, ?, ?)',
+        [username, hashedPassword, 'Player', 0, false, 1000]
+      );
+
+      const userId = result.insertId;
+
+      res.json({ 
+        success: true, 
+        message: 'Đăng ký thành công',
+        user: { userId, username }
+      });
+    } catch (error) {
+      console.error('Register error:', error);
+      res.status(500).json({ success: false, message: 'Đã xảy ra lỗi, vui lòng thử lại sau' });
+    }
+  }
+
+  // Gửi OTP để xác thực email (liên kết email sau khi đăng ký)
+  static async sendEmailVerificationOTP(req, res) {
+    const { userId, email } = req.body;
+
+    if (!userId || !email) {
+      return res.status(400).json({ success: false, message: 'Thiếu thông tin' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, message: 'Email không hợp lệ' });
+    }
+
+    try {
+      // 1. Tìm user
+      const users = await db.query('SELECT * FROM User WHERE user_id = ?', [userId]);
+      const user = users && users[0];
+
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'Tài khoản không tồn tại' });
+      }
+
+      if (user.banned) {
+        return res.status(403).json({ success: false, message: `Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên qua email: ${ADMIN_CONTACT_EMAIL}` });
+      }
+
+      // 2. Kiểm tra email đã được sử dụng bởi bao nhiêu tài khoản (tối đa 5)
+      const emailUsers = await db.query('SELECT * FROM User WHERE email = ? AND user_id != ?', [email, userId]);
+      if (emailUsers && emailUsers.length >= 5) {
+        return res.status(409).json({ 
+          success: false, 
+          message: 'Email này đã được sử dụng cho 5 tài khoản (tối đa). Vui lòng sử dụng email khác' 
+        });
+      }
+
+      // 3. Tạo mã OTP 6 số
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const tokenHash = hashToken(otpCode);
+      const expiresAt = new Date(Date.now() + RESET_PASSWORD_TOKEN_EXPIRES_MINUTES * 60 * 1000);
+
+      // 4. Xóa các OTP cũ chưa verify của user này
+      await db.query('DELETE FROM email_verification_tokens WHERE user_id = ? AND verified_at IS NULL', [userId]);
+
+      // 5. Lưu OTP hash vào DB
+      await db.query(
+        'INSERT INTO email_verification_tokens (user_id, email, token_hash, expires_at) VALUES (?, ?, ?, ?)',
+        [userId, email, tokenHash, expiresAt]
+      );
+
+      // 6. Gửi email với OTP
+      const emailSent = await sendEmailVerificationOTP(email, user.username, otpCode);
+      
+      if (!emailSent) {
+        console.error('Failed to send verification email to:', email);
+        return res.status(500).json({ success: false, message: 'Không thể gửi email. Vui lòng thử lại sau' });
+      }
+
+      res.json({ 
+        success: true, 
+        message: `Mã xác thực đã được gửi đến ${email}`
+      });
+    } catch (error) {
+      console.error('Send verification OTP error:', error);
+      res.status(500).json({ success: false, message: 'Đã xảy ra lỗi, vui lòng thử lại sau' });
+    }
+  }
+
+  // Xác thực OTP và liên kết email với tài khoản
+  static async verifyEmailOTP(req, res) {
+    const { userId, otp } = req.body;
+
+    if (!userId || !otp) {
+      return res.status(400).json({ success: false, message: 'Thiếu thông tin' });
+    }
+
+    try {
+      // 1. Tìm user
+      const users = await db.query('SELECT * FROM User WHERE user_id = ?', [userId]);
+      const user = users && users[0];
+
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'Tài khoản không tồn tại' });
+      }
+
+      if (user.banned) {
+        return res.status(403).json({ success: false, message: `Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên qua email: ${ADMIN_CONTACT_EMAIL}` });
+      }
+
+      const tokenHash = hashToken(otp);
+
+      // 2. Tìm OTP trong DB (chưa verify, chưa hết hạn)
+      const tokens = await db.query(
+        'SELECT * FROM email_verification_tokens WHERE user_id = ? AND token_hash = ? AND verified_at IS NULL AND expires_at > UTC_TIMESTAMP()',
+        [userId, tokenHash]
+      );
+      const tokenRow = tokens && tokens[0];
+
+      if (!tokenRow) {
+        return res.status(400).json({ success: false, message: 'Mã xác thực không đúng hoặc đã hết hạn' });
+      }
+
+      // 3. Cập nhật email cho user
+      await db.query('UPDATE User SET email = ? WHERE user_id = ?', [tokenRow.email, userId]);
+
+      // 4. Đánh dấu OTP đã verify
+      await db.query('UPDATE email_verification_tokens SET verified_at = UTC_TIMESTAMP() WHERE id = ?', [tokenRow.id]);
+
+      res.json({ 
+        success: true, 
+        message: 'Xác thực email thành công',
+        email: tokenRow.email
+      });
+    } catch (error) {
+      console.error('Verify email OTP error:', error);
       res.status(500).json({ success: false, message: 'Đã xảy ra lỗi, vui lòng thử lại sau' });
     }
   }

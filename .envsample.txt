@@ -29,3 +29,6 @@ EMAIL_USER=btthanh2004@gmail.com
 EMAIL_PASSWORD=trbo vjlt dpwb bviq
 EMAIL_FROM=Card Game <btthanh2004@gmail.com>
 RESET_PASSWORD_TOKEN_EXPIRES_MINUTES=15
+
+# Admin contact
+ADMIN_CONTACT_EMAIL=btthanh2004@gmail.com
