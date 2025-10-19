@@ -15,18 +15,18 @@ export const dbConfig = {
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'poker_system',
-  
+
   // 🏊 CONNECTION POOL SETTINGS
   connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
   acquireTimeout: parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 60000,
   timeout: parseInt(process.env.DB_TIMEOUT) || 60000,
   reconnect: true,
-  
+
   // 🔒 SECURITY SETTINGS
   ssl: process.env.DB_SSL === 'true' ? {
     rejectUnauthorized: false
   } : false,
-  
+
   // ⚙️ ADDITIONAL SETTINGS
   charset: 'utf8mb4',
   timezone: '+00:00',
@@ -44,7 +44,7 @@ export const environments = {
     database: 'poker_system_dev',
     debug: true
   },
-  
+
   production: {
     ...dbConfig,
     database: 'poker_system',
@@ -52,7 +52,7 @@ export const environments = {
       rejectUnauthorized: false
     }
   },
-  
+
   test: {
     ...dbConfig,
     database: 'poker_system_test',

@@ -1,10 +1,63 @@
-import pool from "../config/db.js";
+import db from './DatabaseConnection.js';
 
-export const createTableConfig = async (game_type, min_bet, max_players, small_blind, big_blind) => {
-    const result = await pool.query(
-        `INSERT INTO table_configs (game_type, min_bet, max_players, small_blind, big_blind)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-        [game_type, min_bet, max_players, small_blind, big_blind]
+// 🧩 Hàm sinh mã phòng ngẫu nhiên 4 ký tự (0000–9999)
+const generateRoomCode = () => {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+};
+
+const isRoomCodeExists = async (code) => {
+    const rows = await db.query(
+        'SELECT COUNT(*) AS count FROM table_info WHERE room_code = ?',
+        [code]
     );
-    return result.rows[0].id;
+    if (!rows || rows.length === 0) return false; // ✅ tránh lỗi undefined
+    return rows[0].count > 0;
+};
+
+
+// 🧩 Hàm tạo bàn poker mới
+export const createTable = async (
+    min_players,
+    max_players,
+    small_blind,
+    max_blind,
+    min_buy_in,
+    max_buy_in,
+    rake,
+    is_private,
+    created_by
+) => {
+    // 🔹 Tạo room_code duy nhất
+    let room_code;
+    do {
+        room_code = generateRoomCode();
+    } while (await isRoomCodeExists(room_code));
+
+    // 🔹 Thực hiện insert
+    const result = await db.query(
+        `INSERT INTO table_info (
+        room_code, min_players, max_players, small_blind, max_blind,
+        min_buy_in, max_buy_in, rake, is_private, created_by
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            room_code,
+            min_players,
+            max_players,
+            small_blind,
+            max_blind,
+            min_buy_in,
+            max_buy_in,
+            rake,
+            is_private,
+            created_by,
+        ]
+    );
+
+    // 🔹 Lấy thông tin bàn vừa tạo
+    const rows = await db.query(
+        `SELECT table_id, room_code, status FROM table_info WHERE table_id = ?`,
+        [result.insertId]
+    );
+
+    return rows[0];
 };
