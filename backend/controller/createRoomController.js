@@ -1,6 +1,4 @@
-
 import { createTable } from "../model/TableConfig.js";
-import pool from "../config/db.js";
 
 export const createGameRoom = async (req, res) => {
     try {
@@ -31,7 +29,8 @@ export const createGameRoom = async (req, res) => {
 
         res.status(201).json({
             message: "Phòng đã được tạo thành công!",
-            table
+            table,
+            room_code: table.room_code // Thêm room_code để FE có thể sử dụng
         });
     } catch (err) {
         console.error("❌ Lỗi tạo phòng:", err);

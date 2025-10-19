@@ -1,6 +1,21 @@
-import pool from "../config/db.js";
+import db from './DatabaseConnection.js';
 
-// Hàm tạo bàn poker mới
+// 🧩 Hàm sinh mã phòng ngẫu nhiên 4 ký tự (0000–9999)
+const generateRoomCode = () => {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+};
+
+const isRoomCodeExists = async (code) => {
+    const rows = await db.query(
+        'SELECT COUNT(*) AS count FROM table_info WHERE room_code = ?',
+        [code]
+    );
+    if (!rows || rows.length === 0) return false; // ✅ tránh lỗi undefined
+    return rows[0].count > 0;
+};
+
+
+// 🧩 Hàm tạo bàn poker mới
 export const createTable = async (
     min_players,
     max_players,
@@ -12,13 +27,20 @@ export const createTable = async (
     is_private,
     created_by
 ) => {
-    const result = await pool.query(
+    // 🔹 Tạo room_code duy nhất
+    let room_code;
+    do {
+        room_code = generateRoomCode();
+    } while (await isRoomCodeExists(room_code));
+
+    // 🔹 Thực hiện insert
+    const result = await db.query(
         `INSERT INTO table_info (
-        min_players, max_players, small_blind, max_blind,
+        room_code, min_players, max_players, small_blind, max_blind,
         min_buy_in, max_buy_in, rake, is_private, created_by
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-     RETURNING table_id, room_code, status, created_at`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
+            room_code,
             min_players,
             max_players,
             small_blind,
@@ -27,9 +49,15 @@ export const createTable = async (
             max_buy_in,
             rake,
             is_private,
-            created_by
+            created_by,
         ]
     );
 
-    return result.rows[0]; // trả về thông tin bàn vừa tạo
+    // 🔹 Lấy thông tin bàn vừa tạo
+    const rows = await db.query(
+        `SELECT table_id, room_code, status FROM table_info WHERE table_id = ?`,
+        [result.insertId]
+    );
+
+    return rows[0];
 };
