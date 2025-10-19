@@ -1,4 +1,4 @@
-// services/DailyRewardService.js
+// service/DailyRewardService.js
 import db from '../model/DatabaseConnection.js';
 
 class DailyRewardService {

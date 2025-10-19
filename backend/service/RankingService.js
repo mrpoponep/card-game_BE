@@ -1,4 +1,4 @@
-// services/RankingService.js
+// service/RankingService.js
 import User from '../model/User.js';
 
 // 🌐 PUBLIC SERVICE CLASS (chỉ export những gì cần thiết)
