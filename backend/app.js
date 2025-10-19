@@ -13,6 +13,8 @@ import createGameRoom from './route/createRoomRoute.js';
 import authRoute from './route/AuthRoute.js';
 import dailyRewardRoute from './route/DailyRewardRoute.js';
 import eloRewardRoute from './route/EloRewardRoute.js';
+import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
+import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
 const app = express();
 
 // Configure CORS for Express
@@ -145,6 +147,8 @@ app.use('/api', rankingRoute);
 app.use("/api/room", createGameRoom);
 app.use('/api', dailyRewardRoute);
 app.use('/api/elo-reward', eloRewardRoute);
+app.use('/api/weekly-reward', weeklyRewardRoute);
+app.use('/api/monthly-reward', monthlyRewardRoute);
 
 // Example protected route (đặt sau khi cấu hình middleware)
 app.get('/api/protected', authenticateJWT, (req, res) => {

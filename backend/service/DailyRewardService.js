@@ -1,5 +1,7 @@
 // service/DailyRewardService.js
 import db from '../model/DatabaseConnection.js';
+import WeeklyRewardService from './WeeklyRewardService.js';
+import MonthlyRewardService from './MonthlyRewardService.js';
 
 class DailyRewardService {
   /**
@@ -79,6 +81,8 @@ class DailyRewardService {
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
+    const currentDate = now.getDate();
+    const currentDayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ...
 
     // Kiểm tra đã nhận chưa
     const checkResult = await this.checkDailyReward(userId);
@@ -98,7 +102,7 @@ class DailyRewardService {
     try {
       await connection.beginTransaction();
 
-      // 1. Lưu lịch sử nhận thưởng (dùng login_day_count thay vì day_of_month)
+      // 1. Lưu lịch sử nhận thưởng daily (dùng login_day_count thay vì day_of_month)
       await connection.query(
         `INSERT INTO daily_rewards (user_id, login_day_count, month, year, reward_amount, claimed_at)
          VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
@@ -113,20 +117,81 @@ class DailyRewardService {
       );
 
       // 3. Lấy số dư mới
-      const [userResult] = await connection.query(
-        'SELECT balance FROM User WHERE user_id = ?',
+      const userResult = await connection.query(
+        'SELECT balance, gems FROM User WHERE user_id = ?',
         [userId]
       );
 
       await db.commit(connection);
 
-      return {
+      const result = {
         success: true,
         reward: rewardAmount,
         balance: userResult[0].balance,
+        gems: userResult[0].gems,
         loginDayCount: loginDayCount,
-        message: `Chúc mừng! Bạn đã nhận ${rewardAmount} xu cho ngày đăng nhập thứ ${loginDayCount}!`
+        message: `Chúc mừng! Bạn đã nhận ${rewardAmount} xu cho ngày đăng nhập thứ ${loginDayCount}!`,
+        bonusRewards: [] // Array để chứa thưởng bổ sung
       };
+
+      // ===== KIỂM TRA THƯỞNG BỔ SUNG (Không phụ thuộc ngày cụ thể) =====
+
+      // A. Kiểm tra Weekly Reward (bất kỳ lúc nào, miễn chưa nhận tuần này)
+      try {
+        const weeklyCheck = await WeeklyRewardService.checkWeeklyReward(userId);
+        if (weeklyCheck.canClaim) {
+          const weeklyResult = await WeeklyRewardService.claimWeeklyReward(userId);
+          result.bonusRewards.push({
+            type: 'weekly',
+            success: true,
+            reward: weeklyResult.reward,
+            gems: weeklyResult.gems,
+            tierName: weeklyResult.tierName,
+            message: weeklyResult.message
+          });
+          result.gems = weeklyResult.gems; // Cập nhật gems mới nhất
+        }
+      } catch (error) {
+        console.error('Error claiming weekly reward:', error);
+        // Không hiển thị lỗi nếu đã nhận rồi, chỉ log
+        if (!error.message.includes('đã nhận')) {
+          result.bonusRewards.push({
+            type: 'weekly',
+            success: false,
+            message: error.message
+          });
+        }
+      }
+
+      // B. Kiểm tra Monthly Reward (bất kỳ lúc nào, miễn chưa nhận tháng này)
+      try {
+        const monthlyCheck = await MonthlyRewardService.checkMonthlyReward(userId);
+        if (monthlyCheck.canClaim) {
+          const monthlyResult = await MonthlyRewardService.claimMonthlyReward(userId);
+          result.bonusRewards.push({
+            type: 'monthly',
+            success: true,
+            reward: monthlyResult.reward,
+            gems: monthlyResult.gems,
+            rank: monthlyResult.rank,
+            monthYear: monthlyResult.monthYear,
+            message: monthlyResult.message
+          });
+          result.gems = monthlyResult.gems; // Cập nhật gems mới nhất
+        }
+      } catch (error) {
+        console.error('Error claiming monthly reward:', error);
+        // Không hiển thị lỗi nếu đã nhận rồi hoặc không đủ điều kiện, chỉ log
+        if (!error.message.includes('đã nhận') && !error.message.includes('không có trong top')) {
+          result.bonusRewards.push({
+            type: 'monthly',
+            success: false,
+            message: error.message
+          });
+        }
+      }
+
+      return result;
     } catch (error) {
       await db.rollback(connection);
       throw error;
