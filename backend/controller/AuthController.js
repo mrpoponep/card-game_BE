@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import db from '../model/DatabaseConnection.js';
 import crypto from 'crypto';
-import { sendPasswordResetOTP, sendEmailVerificationOTP } from '../services/emailService.js';
+import { sendPasswordResetOTP, sendEmailVerificationOTP } from '../service/emailService.js';
 
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'access_secret';
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'refresh_secret';
