@@ -1,0 +1,18 @@
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root        # Thay bằng tên đăng nhập MySql của máy chủ
+DB_PASSWORD=0000    # Thay bằng mật khẩu MySql của máy chủ
+DB_NAME=poker_system
+
+# Connection Pool Settings
+DB_CONNECTION_LIMIT=10
+DB_ACQUIRE_TIMEOUT=60000
+DB_TIMEOUT=60000
+
+# Security
+DB_SSL=false
+
+# Application
+NODE_ENV=test
+PORT=3000
