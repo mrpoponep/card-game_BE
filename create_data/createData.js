@@ -489,6 +489,30 @@ class DatabaseCreator {
     }
   }
 
+  // 📝 Tạo bảng Report
+  async createReportTable() {
+    const sql = `
+      CREATE TABLE Report (
+        report_id INT AUTO_INCREMENT PRIMARY KEY,
+        reported_id INT NOT NULL,
+        type TEXT,
+        reason TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (reported_id) REFERENCES User(user_id)
+          ON DELETE CASCADE ON UPDATE CASCADE
+      )
+    `;
+
+    try {
+      console.log('📝 Creating Report table...');
+      await this.runSQL(sql);
+      console.log('✅ Report table created!');
+    } catch (error) {
+      console.error('❌ Error creating Report table:', error.message);
+      throw error;
+    }
+  }
+
   // ⚡ Tạo các indexes
   async createIndexes() {
     const indexes = [
@@ -496,7 +520,8 @@ class DatabaseCreator {
       'CREATE INDEX idx_tx_user ON Transactions(user_id)',
       'CREATE INDEX idx_game_table ON Game_History(table_id)',
       'CREATE INDEX idx_ban_user ON Banned_Player(reported_id)',
-      'CREATE INDEX idx_appeal_report ON Appeal(report_id)'
+      'CREATE INDEX idx_appeal_report ON Appeal(report_id)',
+      'CREATE INDEX idx_report_user ON Report(reported_id)'
     ];
 
     try {
@@ -704,6 +729,15 @@ class DatabaseCreator {
       `);
       console.log('📞 Demo appeal inserted!');
 
+      // Thêm report
+      await this.connection.execute(`
+        INSERT INTO Report (reported_id, type, reason)
+        VALUES 
+        (2, 'Cheating', 'Used bot to play'),
+        (2, 'Toxic Behavior', 'Offensive language and harassment')
+      `);
+      console.log('📝 Demo reports inserted!');
+
       console.log('✅ All demo data inserted successfully!');
     } catch (error) {
       console.error('❌ Error inserting demo data:', error.message);
@@ -828,6 +862,7 @@ class DatabaseCreator {
       await this.createGameHistoryTable();
       await this.createBannedPlayerTable();
       await this.createAppealTable();
+      await this.createReportTable();
 
       await this.createIndexes();
       await this.createTriggers();
