@@ -78,8 +78,9 @@ class User {
   }
 
   async getRank() {
-    // Lấy vị trí xếp hạng của người chơi dựa trên elo
-    const rank = await db.query("SELECT COUNT(*) + 1 AS 'rank' FROM user WHERE elo > ? AND banned = false", [this.elo]);
+    // Olympic ranking: người cùng ELO có cùng rank
+    // Đếm số người có ELO cao hơn (STRICTLY greater)
+    const rank = await db.query("SELECT COUNT(DISTINCT elo) + 1 AS 'rank' FROM user WHERE elo > ? AND banned = false", [this.elo]);
     return rank[0].rank;
   }
 

@@ -6,12 +6,26 @@ class RankingService {
   static async getAllRankings() {
     // Always return top 100 without pagination
     const listRankings = await User.listRankings(100);
-    const rankings = listRankings.map((player, index) => ({
-      rank: index + 1,
-      userId: player.user_id,
-      username: player.username,
-      elo: player.elo,
-    }));
+    
+    // Olympic ranking: cùng ELO thì cùng rank
+    let currentRank = 1;
+    let previousElo = null;
+    
+    const rankings = listRankings.map((player, index) => {
+      // Nếu ELO khác với người trước đó, cập nhật rank
+      if (previousElo !== null && player.elo < previousElo) {
+        currentRank = index + 1;
+      }
+      previousElo = player.elo;
+      
+      return {
+        rank: currentRank,
+        userId: player.user_id,
+        username: player.username,
+        elo: player.elo,
+      };
+    });
+    
     return {
       rankings,
       totalItems: rankings.length
