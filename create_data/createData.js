@@ -15,17 +15,17 @@ class DatabaseCreator {
   constructor() {
     this.connection = null;
     this.env = process.env.NODE_ENV || 'development';
-    
+
     this.config = {
       host: process.env.DB_HOST || 'localhost',
       user: process.env.DB_USER || 'root',
       password: process.env.DB_PASSWORD || '',
       multipleStatements: true
     };
-    
+
     // Tên database theo môi trường
     this.dbName = this.getDatabaseName();
-    
+
     // Cảnh báo cho production
     if (this.env === 'production') {
       console.log('⚠️  WARNING: Running in PRODUCTION mode!');
@@ -102,7 +102,7 @@ class DatabaseCreator {
     console.log('� ALL PRODUCTION DATA WILL BE LOST!');
     console.log('💡 You should backup your data first.');
     console.log('='.repeat(60));
-    
+
     // Luôn dùng confirmation tối đa khi database đã tồn tại
     return await this.getMaximumSecurityConfirmation();
   }
@@ -126,7 +126,7 @@ class DatabaseCreator {
       rl.question('\n❓ Type "YES" to continue or "NO" to abort: ', (answer) => {
         clearTimeout(timeout);
         const input = answer.trim().toUpperCase();
-        
+
         if (input === 'YES') {
           console.log('✅ Confirmed! Proceeding with production setup...');
           rl.close();
@@ -149,11 +149,11 @@ class DatabaseCreator {
 
     return new Promise((resolve) => {
       let step = 1;
-      
+
       const askStep1 = () => {
         rl.question('\n❓ Do you want to continue? (y/n): ', (answer) => {
           const input = answer.trim().toLowerCase();
-          
+
           if (input === 'y' || input === 'yes') {
             step = 2;
             askStep2();
@@ -172,7 +172,7 @@ class DatabaseCreator {
         console.log('\n⚠️  FINAL WARNING: This will DESTROY all production data!');
         rl.question('❓ Type the database name "' + this.dbName + '" to confirm: ', (answer) => {
           const input = answer.trim();
-          
+
           if (input === this.dbName) {
             step = 3;
             askStep3();
@@ -189,7 +189,7 @@ class DatabaseCreator {
         console.log('\n🔐 Final security check:');
         rl.question('❓ Type "I UNDERSTAND THE RISKS" to proceed: ', (answer) => {
           const input = answer.trim();
-          
+
           if (input === 'I UNDERSTAND THE RISKS') {
             console.log('\n✅ All confirmations completed! Proceeding with production setup...');
             rl.close();
@@ -202,7 +202,7 @@ class DatabaseCreator {
           }
         });
       };
-      
+
       askStep1();
     });
   }
@@ -216,12 +216,12 @@ class DatabaseCreator {
 
     return new Promise((resolve) => {
       let step = 1;
-      
+
       const askStep1 = () => {
         console.log('\n⚠️  Step 1 of 4: Initial confirmation');
         rl.question('❓ Are you absolutely sure you want to DESTROY production data? (type "destroy"): ', (answer) => {
           const input = answer.trim().toLowerCase();
-          
+
           if (input === 'destroy') {
             askStep2();
           } else {
@@ -237,7 +237,7 @@ class DatabaseCreator {
         console.log(`💀 This will completely WIPE "${this.dbName}" database!`);
         rl.question(`❓ Type the EXACT database name "${this.dbName}" to continue: `, (answer) => {
           const input = answer.trim();
-          
+
           if (input === this.dbName) {
             askStep3();
           } else {
@@ -255,7 +255,7 @@ class DatabaseCreator {
         console.log('⚠️  To prevent accidents, confirm today\'s date:');
         rl.question(`❓ Type today's date (${currentDate}): `, (answer) => {
           const input = answer.trim();
-          
+
           if (input === currentDate) {
             askStep4();
           } else {
@@ -273,7 +273,7 @@ class DatabaseCreator {
         const securityPhrase = 'I FULLY UNDERSTAND THIS DESTROYS ALL PRODUCTION DATA';
         rl.question(`❓ Type: "${securityPhrase}": `, (answer) => {
           const input = answer.trim();
-          
+
           if (input === securityPhrase) {
             console.log('\n💀 All security confirmations passed.');
             console.log('🔥 PROCEEDING WITH PRODUCTION DATA DESTRUCTION...');
@@ -287,7 +287,7 @@ class DatabaseCreator {
           }
         });
       };
-      
+
       askStep1();
     });
   }
@@ -321,7 +321,7 @@ class DatabaseCreator {
   async runSQL(sql, params = []) {
     const ddlCommands = ['CREATE', 'DROP', 'ALTER', 'USE'];
     const isDDL = ddlCommands.some(cmd => sql.trim().toUpperCase().startsWith(cmd));
-    
+
     if (isDDL) {
       return await this.connection.query(sql);
     } else {
@@ -385,15 +385,22 @@ class DatabaseCreator {
   async createTableInfoTable() {
     const sql = `
       CREATE TABLE Table_Info (
-        table_id INT AUTO_INCREMENT PRIMARY KEY,
-        min_players INT NOT NULL,
-        max_players INT NOT NULL,
-        small_blind DECIMAL(10,2),
-        max_blind DECIMAL(10,2),
-        min_buy_in DECIMAL(10,2),
-        max_buy_in DECIMAL(10,2),
-        rake DECIMAL(5,2)
-      )
+    table_id INT AUTO_INCREMENT PRIMARY KEY,
+    room_code CHAR(4) NOT NULL UNIQUE,      -- 🔹 Mã phòng gồm 4 số, không trùng nhau
+    min_players INT NOT NULL,
+    max_players INT NOT NULL,
+    small_blind DECIMAL(10,2),
+    max_blind DECIMAL(10,2),
+    min_buy_in DECIMAL(10,2),
+    max_buy_in DECIMAL(10,2),
+    rake DECIMAL(5,2),
+    is_private BOOLEAN DEFAULT FALSE,
+    status ENUM('waiting', 'playing') DEFAULT 'waiting',
+    created_by INT,
+    FOREIGN KEY (created_by) REFERENCES User(user_id)
+        ON DELETE SET NULL ON UPDATE CASCADE
+);
+
     `;
 
     try {
@@ -709,14 +716,14 @@ class DatabaseCreator {
     // Không test chi tiết trên production (chỉ test cơ bản)
     if (this.env === 'production') {
       console.log('\n🧪 Running basic tests for production...');
-      
+
       try {
         // Chỉ test cơ bản: kiểm tra tables tồn tại
         const [tables] = await this.connection.query(`
           SELECT table_name FROM information_schema.tables 
           WHERE table_schema = DATABASE()
         `);
-        
+
         console.log('✅ Database tables created successfully:');
         if (Array.isArray(tables) && tables.length > 0) {
           tables.forEach(t => console.log(`   • ${t.TABLE_NAME || t.table_name}`));
@@ -724,7 +731,7 @@ class DatabaseCreator {
         } else {
           console.log('   • No tables found');
         }
-        
+
         console.log('\n✅ Production setup completed successfully!');
         return;
       } catch (error) {
@@ -800,10 +807,10 @@ class DatabaseCreator {
   async run() {
     try {
       console.log(`🚀 Starting database creation process for ${this.env.toUpperCase()} environment...\n`);
-      
+
       // Kết nối trước để có thể kiểm tra database
       await this.connect();
-      
+
       // Xác nhận sau khi đã kết nối (để có thể check database exists)
       const confirmed = await this.confirmProduction();
       if (!confirmed) {
@@ -813,7 +820,7 @@ class DatabaseCreator {
       }
       await this.dropDatabase();
       await this.createDatabase();
-      
+
       console.log('\n📋 Creating tables...');
       await this.createUserTable();
       await this.createTransactionsTable();
@@ -821,16 +828,16 @@ class DatabaseCreator {
       await this.createGameHistoryTable();
       await this.createBannedPlayerTable();
       await this.createAppealTable();
-      
+
       await this.createIndexes();
       await this.createTriggers();
       await this.createStoredProcedures();
       await this.insertDemoData();
-      
+
       await this.runTests();
-      
+
       console.log('\n🎉 Database setup completed successfully!');
-      
+
     } catch (error) {
       console.error('\n💥 Setup failed:', error.message);
       process.exit(1);

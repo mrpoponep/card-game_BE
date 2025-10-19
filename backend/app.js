@@ -11,6 +11,7 @@ import rateLimit from 'express-rate-limit';
 import rankingRoute from './route/RankingRoute.js';
 import createGameRoom from './route/createRoomRoute.js';
 import authRoute from './route/AuthRoute.js';
+import findRoomRoute from "./route/findRoomRoute.js";
 const app = express();
 
 // Configure CORS for Express
@@ -36,46 +37,46 @@ app.use('/api', apiLimiter);
 app.use((req, res, next) => {
   const startTime = Date.now();
   const timestamp = new Date().toISOString();
-  
+
   // Log request
   console.log('\n' + '='.repeat(60));
   console.log(`📥 REQUEST [${timestamp}] ${req.method} ${req.originalUrl || req.url}`);
   console.log('📍 IP:', req.ip || req.connection.remoteAddress);
-  
+
   if (Object.keys(req.query).length > 0) {
     console.log('🔍 Query:', JSON.stringify(req.query, null, 2));
   }
-  
+
   if (Object.keys(req.params).length > 0) {
     console.log('🎯 Params:', JSON.stringify(req.params, null, 2));
   }
-  
+
   if (req.body && Object.keys(req.body).length > 0) {
     console.log('📦 Body:', JSON.stringify(req.body, null, 2));
   }
-  
+
   console.log('🔗 Headers:', {
     'content-type': req.headers['content-type'],
     'user-agent': req.headers['user-agent'],
     'origin': req.headers.origin
   });
-  
+
   // Hook vào response để log khi hoàn thành
   const originalSend = res.send;
   let responseBody = null;
-  
-  res.send = function(data) {
+
+  res.send = function (data) {
     responseBody = data;
     return originalSend.call(this, data);
   };
-  
+
   res.on('finish', () => {
     const duration = Date.now() - startTime;
     const statusColor = res.statusCode >= 400 ? '🔴' : res.statusCode >= 300 ? '🟡' : '🟢';
-    
+
     console.log('─'.repeat(60));
     console.log(`📤 RESPONSE ${statusColor} Status: ${res.statusCode} | Duration: ${duration}ms`);
-    
+
     if (responseBody) {
       try {
         let bodyObj;
@@ -88,10 +89,10 @@ app.use((req, res, next) => {
         } else {
           bodyObj = responseBody;
         }
-        
+
         // Format JSON với indentation đẹp
         const formatted = JSON.stringify(bodyObj, null, 2);
-        
+
         // Nếu quá dài (>1000 chars), truncate nhưng vẫn giữ format
         if (formatted.length > 1000) {
           const lines = formatted.split('\n');
@@ -107,16 +108,16 @@ app.use((req, res, next) => {
         console.log('📨 Response: [unable to stringify]');
       }
     }
-    
+
     console.log('='.repeat(60) + '\n');
   });
-  
+
   next();
 });
 
 // Routes
 app.get('/', (req, res) => {
-    res.json({ message: 'Card Game Server is running' });
+  res.json({ message: 'Card Game Server is running' });
 });
 
 // API Routes
@@ -141,9 +142,5 @@ app.use((req, res, next) => {
 
 app.use('/api', rankingRoute);
 app.use("/api/room", createGameRoom);
-
-// Example protected route (đặt sau khi cấu hình middleware)
-app.get('/api/protected', authenticateJWT, (req, res) => {
-  res.json({ success: true, message: 'Bạn đã xác thực thành công!', user: req.user });
-});
+app.use("/api/room", findRoomRoute);
 export default app;
