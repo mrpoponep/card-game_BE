@@ -41,7 +41,7 @@ export const dbConfig = {
 export const environments = {
   development: {
     ...dbConfig,
-    database: 'poker_system_dev',
+    // database: 'poker_system_dev',
     debug: true
   },
 

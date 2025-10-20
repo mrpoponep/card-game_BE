@@ -13,6 +13,7 @@
     "db:create": "npm run db:create:dev"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.18.2",

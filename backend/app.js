@@ -1,11 +1,19 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path'; // 🔹 THÊM DÒNG NÀY
+import { fileURLToPath } from 'url'; // 🔹 THÊM DÒNG NÀY
 
 // Import routes
 import rankingRoute from './route/RankingRoute.js';
 import createGameRoom from './route/createRoomRoute.js';
 import findRoomRoute from "./route/findRoomRoute.js";
+import authRoute from './route/authRoute.js'; // 🔹 THÊM DÒNG NÀY
+
 const app = express();
+
+// 🔹 Cấu hình __dirname cho ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Configure CORS for Express
 app.use(cors({
@@ -14,10 +22,16 @@ app.use(cors({
 }));
 
 // Basic middleware
-app.use(express.json());                        // Cho JSON data
+app.use(express.json());               // Cho JSON data
 app.use(express.urlencoded({ extended: true })); // Cho form-urlencoded
 
+// 🔹 Phục vụ file tĩnh (cho avatars)
+// __dirname đang là /Server/backend
+// chúng ta cần đi lùi 1 cấp ra /Server, rồi vào /public
+app.use(express.static(path.join(__dirname, '..', 'public')));
+
 // 🔍 Request & Response logger middleware
+// ... (giữ nguyên middleware logger của bạn) ...
 app.use((req, res, next) => {
   const startTime = Date.now();
   const timestamp = new Date().toISOString();
@@ -106,8 +120,10 @@ app.get('/', (req, res) => {
 
 // API Routes
 app.use('/api', rankingRoute);
+app.use('/api/auth', authRoute); // 🔹 THÊM DÒNG NÀY
 
 // REST API Routes - PostgreSQL integration
 app.use("/api/room", createGameRoom);
 app.use("/api/room", findRoomRoute);
+
 export default app;
