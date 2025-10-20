@@ -143,15 +143,11 @@ app.use((req, res, next) => {
   return authenticateJWT(req, res, next);
 });
 
-app.use('/api', rankingRoute);
+app.use('/api/rankings', rankingRoute);
 app.use("/api/room", createGameRoom);
-app.use('/api', dailyRewardRoute);
+app.use('/api/daily-reward', dailyRewardRoute);
 app.use('/api/elo-reward', eloRewardRoute);
 app.use('/api/weekly-reward', weeklyRewardRoute);
 app.use('/api/monthly-reward', monthlyRewardRoute);
 
-// Example protected route (đặt sau khi cấu hình middleware)
-app.get('/api/protected', authenticateJWT, (req, res) => {
-  res.json({ success: true, message: 'Bạn đã xác thực thành công!', user: req.user });
-});
 export default app;

@@ -159,53 +159,6 @@ class MonthlyRewardService {
     
     return { monthYear, year, month };
   }
-
-  /**
-   * Lấy lịch sử nhận thưởng tháng
-   * @param {number} userId 
-   * @param {number} limit 
-   * @returns {Promise<Array>}
-   */
-  static async getClaimHistory(userId, limit = 10) {
-    const history = await db.query(
-      `SELECT month_year, rank_at_claim, elo_at_claim, gems_received, claimed_at 
-       FROM monthly_reward_claims 
-       WHERE user_id = ?
-       ORDER BY claimed_at DESC 
-       LIMIT ${limit}`,
-      [userId]
-    );
-
-    return history;
-  }
-
-  /**
-   * Lấy danh sách cấu hình phần thưởng tháng
-   * @returns {Promise<Array>}
-   */
-  static async getRewardConfig() {
-    const config = await db.query(
-      'SELECT rank_min, rank_max, gems_reward FROM monthly_reward_config ORDER BY rank_min ASC'
-    );
-
-    return config;
-  }
-
-  /**
-   * Lấy top 100 players cho tháng hiện tại
-   * @returns {Promise<Array>}
-   */
-  static async getTop100Players() {
-    const players = await db.query(
-      `SELECT user_id, username, elo 
-       FROM User 
-       WHERE banned = 0
-       ORDER BY elo DESC 
-       LIMIT 100`
-    );
-
-    return players;
-  }
 }
 
 export default MonthlyRewardService;

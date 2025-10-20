@@ -5,10 +5,9 @@ import DailyRewardController from '../controller/DailyRewardController.js';
 const router = Router();
 
 // Tất cả routes đều yêu cầu authentication
-router.post('/daily-reward/check', DailyRewardController.checkReward);
-router.post('/daily-reward/claim', DailyRewardController.claimReward);
-router.get('/daily-reward/history', DailyRewardController.getHistory);
-router.get('/daily-reward/monthly', DailyRewardController.getMonthlyRewards);
-router.get('/daily-reward/stats', DailyRewardController.getStats);
+router.post('/check', DailyRewardController.checkReward);
+router.post('/claim', DailyRewardController.claimReward);
+router.get('/history', DailyRewardController.getHistory);
+router.get('/monthly', DailyRewardController.getMonthlyRewards);
 
 export default router;

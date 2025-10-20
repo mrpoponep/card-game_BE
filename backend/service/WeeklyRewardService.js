@@ -138,37 +138,6 @@ class WeeklyRewardService {
     monday.setHours(0, 0, 0, 0);
     return monday;
   }
-
-  /**
-   * Lấy lịch sử nhận thưởng tuần
-   * @param {number} userId 
-   * @param {number} limit 
-   * @returns {Promise<Array>}
-   */
-  static async getClaimHistory(userId, limit = 10) {
-    const history = await db.query(
-      `SELECT week_start_date, gems_received, elo_at_claim, claimed_at 
-       FROM weekly_reward_claims 
-       WHERE user_id = ?
-       ORDER BY claimed_at DESC 
-       LIMIT ${limit}`,
-      [userId]
-    );
-
-    return history;
-  }
-
-  /**
-   * Lấy danh sách cấu hình phần thưởng tuần
-   * @returns {Promise<Array>}
-   */
-  static async getRewardConfig() {
-    const config = await db.query(
-      'SELECT elo_min, elo_max, gems_reward, tier_name FROM weekly_reward_config ORDER BY elo_min ASC'
-    );
-
-    return config;
-  }
 }
 
 export default WeeklyRewardService;

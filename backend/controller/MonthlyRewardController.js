@@ -41,62 +41,6 @@ class MonthlyRewardController {
       });
     }
   }
-
-  // Lấy lịch sử nhận thưởng tháng
-  async getMonthlyHistory(req, res) {
-    try {
-      const userId = req.user.userId;
-      
-      const history = await MonthlyRewardService.getClaimHistory(userId);
-      
-      return res.status(200).json({
-        success: true,
-        data: history
-      });
-    } catch (error) {
-      console.error('Error getting monthly history:', error);
-      return res.status(500).json({
-        success: false,
-        message: error.message || 'Lỗi khi lấy lịch sử nhận thưởng tháng'
-      });
-    }
-  }
-
-  // Lấy cấu hình phần thưởng tháng
-  async getMonthlyConfig(req, res) {
-    try {
-      const config = await MonthlyRewardService.getRewardConfig();
-      
-      return res.status(200).json({
-        success: true,
-        data: config
-      });
-    } catch (error) {
-      console.error('Error getting monthly config:', error);
-      return res.status(500).json({
-        success: false,
-        message: error.message || 'Lỗi khi lấy cấu hình phần thưởng tháng'
-      });
-    }
-  }
-
-  // Lấy danh sách Top 100 players
-  async getTop100(req, res) {
-    try {
-      const top100 = await MonthlyRewardService.getTop100Players();
-      
-      return res.status(200).json({
-        success: true,
-        data: top100
-      });
-    } catch (error) {
-      console.error('Error getting top 100:', error);
-      return res.status(500).json({
-        success: false,
-        message: error.message || 'Lỗi khi lấy danh sách Top 100'
-      });
-    }
-  }
 }
 
 export default new MonthlyRewardController();

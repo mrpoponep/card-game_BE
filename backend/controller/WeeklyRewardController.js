@@ -41,44 +41,6 @@ class WeeklyRewardController {
       });
     }
   }
-
-  // Lấy lịch sử nhận thưởng tuần
-  async getWeeklyHistory(req, res) {
-    try {
-      const userId = req.user.userId;
-      
-      const history = await WeeklyRewardService.getClaimHistory(userId);
-      
-      return res.status(200).json({
-        success: true,
-        data: history
-      });
-    } catch (error) {
-      console.error('Error getting weekly history:', error);
-      return res.status(500).json({
-        success: false,
-        message: error.message || 'Lỗi khi lấy lịch sử nhận thưởng tuần'
-      });
-    }
-  }
-
-  // Lấy cấu hình phần thưởng tuần
-  async getWeeklyConfig(req, res) {
-    try {
-      const config = await WeeklyRewardService.getRewardConfig();
-      
-      return res.status(200).json({
-        success: true,
-        data: config
-      });
-    } catch (error) {
-      console.error('Error getting weekly config:', error);
-      return res.status(500).json({
-        success: false,
-        message: error.message || 'Lỗi khi lấy cấu hình phần thưởng tuần'
-      });
-    }
-  }
 }
 
 export default new WeeklyRewardController();

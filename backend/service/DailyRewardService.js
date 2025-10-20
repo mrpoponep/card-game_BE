@@ -234,25 +234,6 @@ class DailyRewardService {
 
     return rewards;
   }
-
-  /**
-   * Lấy số ngày đã nhận thưởng trong tháng hiện tại
-   * @param {number} userId 
-   * @returns {Promise<number>}
-   */
-  static async getMonthlyClaimCount(userId) {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
-
-    const result = await db.query(
-      `SELECT COUNT(*) as count FROM daily_rewards 
-       WHERE user_id = ? AND year = ? AND month = ?`,
-      [userId, currentYear, currentMonth]
-    );
-
-    return result[0].count;
-  }
 }
 
 export default DailyRewardService;

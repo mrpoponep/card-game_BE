@@ -89,33 +89,6 @@ class DailyRewardController {
       });
     }
   }
-
-  /**
-   * Lấy thống kê tháng hiện tại
-   * GET /api/daily-reward/stats
-   */
-  static async getStats(req, res) {
-    try {
-      const userId = req.user.userId;
-
-      const claimCount = await DailyRewardService.getMonthlyClaimCount(userId);
-      const checkResult = await DailyRewardService.checkDailyReward(userId);
-
-      res.json({
-        success: true,
-        data: {
-          monthlyClaimCount: claimCount,
-          canClaimToday: checkResult.canClaim,
-          todayReward: checkResult.reward
-        }
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
 }
 
 export default DailyRewardController;

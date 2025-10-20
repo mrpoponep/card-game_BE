@@ -97,51 +97,6 @@ class EloRewardController {
             });
         }
     }
-
-    /**
-     * Lấy lịch sử nhận thưởng
-     * GET /elo-reward/history?seasonId=1
-     */
-    static async getHistory(req, res) {
-        try {
-            const userId = req.user.userId; // Từ JWT middleware
-            const seasonId = req.query.seasonId ? parseInt(req.query.seasonId) : null;
-            
-            const history = await EloRewardService.getClaimHistory(userId, seasonId);
-            
-            res.json({
-                success: true,
-                data: history
-            });
-        } catch (error) {
-            console.error('Error in getHistory:', error);
-            res.status(500).json({
-                success: false,
-                message: error.message || 'Lỗi khi lấy lịch sử'
-            });
-        }
-    }
-
-    /**
-     * Lấy danh sách các mùa
-     * GET /elo-reward/seasons
-     */
-    static async getSeasons(req, res) {
-        try {
-            const seasons = await EloRewardService.getAllSeasons();
-            
-            res.json({
-                success: true,
-                data: seasons
-            });
-        } catch (error) {
-            console.error('Error in getSeasons:', error);
-            res.status(500).json({
-                success: false,
-                message: error.message || 'Lỗi khi lấy danh sách mùa'
-            });
-        }
-    }
 }
 
 export default EloRewardController;
