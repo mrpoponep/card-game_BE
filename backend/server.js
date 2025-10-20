@@ -4,6 +4,7 @@ import './config/dotenv-config.js';
 import http from 'http';
 import { Server } from 'socket.io';
 import app from './app.js';
+import RewardDistributionService from './service/RewardDistributionService.js';
 
 const PORT = process.env.PORT || 3000;
 
@@ -45,6 +46,15 @@ io.on('connection', (socket) => {
 // Start server
 server.listen(PORT, () => {
   console.log(`🚀 Poker Server running on port ${PORT}`);
-  console.log(`📡 Socket.io enabled for real-time features`);
-  console.log(`🎮 REST API available at /api/room`);
+
+  // Initialize reward distribution scheduler
+  console.log('\n🎁 Khởi tạo hệ thống phân phối phần thưởng...');
+  try {
+    // Khởi động scheduler (tự động catch-up + chạy theo lịch)
+    RewardDistributionService.startScheduler();
+    
+    console.log('✅ Hệ thống phân phối phần thưởng đã được khởi tạo thành công');
+  } catch (error) {
+    console.error('❌ Không thể khởi tạo hệ thống phân phối phần thưởng:', error.message);
+  }
 });

@@ -79,9 +79,13 @@ class User {
 
   async getRank() {
     // Olympic ranking: người cùng ELO có cùng rank
-    // Đếm số người có ELO cao hơn (STRICTLY greater)
-    const rank = await db.query("SELECT COUNT(DISTINCT elo) + 1 AS 'rank' FROM user WHERE elo > ? AND banned = false", [this.elo]);
-    return rank[0].rank;
+    // Rank = số người có ELO STRICTLY GREATER + 1
+    // Ví dụ: 2 người ELO 2500 (rank 1), 1 người ELO 2000 (rank 3)
+    const result = await db.query(
+      "SELECT COUNT(*) + 1 AS 'rank' FROM user WHERE elo > ? AND banned = false", 
+      [this.elo]
+    );
+    return result[0].rank;
   }
 
   // 🔄 SERIALIZATION

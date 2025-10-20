@@ -3,72 +3,67 @@ import db from '../model/DatabaseConnection.js';
 
 class WeeklyRewardService {
   /**
-   * Kiểm tra xem user có thể nhận thưởng tuần không
+   * Kiểm tra xem user có phần thưởng tuần chưa nhận không
+   * CHỈ kiểm tra các reward đã được tạo sẵn (bởi scheduler)
    * @param {number} userId 
-   * @returns {Promise<{canClaim: boolean, reward: number|null, weekStartDate: Date|null}>}
+   * @returns {Promise<{canClaim: boolean, reward: number|null}>}
    */
   static async checkWeeklyReward(userId) {
-    // Lấy ngày thứ 2 đầu tuần hiện tại
-    const weekStartDate = this.getMondayOfCurrentWeek();
-    const weekStartDateStr = weekStartDate.toISOString().split('T')[0];
-
-    // Lấy ELO hiện tại của user
-    const user = await db.query(
-      'SELECT elo FROM User WHERE user_id = ?',
+    // Kiểm tra có reward pending không (claimed_at IS NULL)
+    const pendingRewards = await db.query(
+      `SELECT * FROM weekly_reward_claims 
+       WHERE user_id = ? AND claimed_at IS NULL
+       ORDER BY week_start_date DESC
+       LIMIT 1`,
       [userId]
     );
 
-    if (!user || user.length === 0) {
-      throw new Error('User not found');
-    }
-
-    const currentElo = user[0].elo;
-
-    // Tìm phần thưởng theo ELO
-    const rewardConfig = await db.query(
-      `SELECT gems_reward, tier_name 
-       FROM weekly_reward_config
-       WHERE elo_min <= ? AND (elo_max IS NULL OR elo_max >= ?)
-       ORDER BY elo_min DESC
-       LIMIT 1`,
-      [currentElo, currentElo]
-    );
-
-    if (rewardConfig.length === 0) {
+    if (pendingRewards.length > 0) {
+      const reward = pendingRewards[0];
       return {
-        canClaim: false,
-        reward: null,
-        tierName: null,
-        currentElo: currentElo,
-        weekStartDate: weekStartDate,
-        message: 'Không tìm thấy cấu hình phần thưởng phù hợp'
+        canClaim: true,
+        reward: reward.gems_received,
+        title: reward.tier_name || 'Weekly Reward',
+        weekStartDate: reward.week_start_date,
+        eloAtEarned: reward.elo_at_claim,
+        message: `Bạn có thể nhận ${reward.gems_received} gems cho tuần này!`
       };
     }
 
-    // Kiểm tra đã claim tuần này chưa
-    const claimed = await db.query(
+    // Nếu không có pending reward, lấy reward gần nhất (đã claim)
+    const lastReward = await db.query(
       `SELECT * FROM weekly_reward_claims 
-       WHERE user_id = ? AND week_start_date = ?`,
-      [userId, weekStartDateStr]
+       WHERE user_id = ? AND claimed_at IS NOT NULL
+       ORDER BY week_start_date DESC
+       LIMIT 1`,
+      [userId]
     );
 
-    const alreadyClaimed = claimed.length > 0;
+    if (lastReward.length > 0) {
+      const reward = lastReward[0];
+      return {
+        canClaim: false,
+        reward: reward.gems_received,
+        title: reward.tier_name || 'Weekly Reward',
+        weekStartDate: reward.week_start_date,
+        eloAtEarned: reward.elo_at_claim,
+        claimedAt: reward.claimed_at,
+        message: 'Bạn đã nhận phần thưởng tuần này rồi'
+      };
+    }
 
+    // Nếu chưa có reward nào (user mới hoặc chưa đủ điều kiện)
     return {
-      canClaim: !alreadyClaimed,
-      reward: rewardConfig[0].gems_reward,
-      tierName: rewardConfig[0].tier_name,
-      currentElo: currentElo,
-      weekStartDate: weekStartDate,
-      alreadyClaimed: alreadyClaimed,
-      message: alreadyClaimed 
-        ? 'Bạn đã nhận thưởng tuần này rồi!' 
-        : `Bạn có thể nhận ${rewardConfig[0].gems_reward} gems cho tuần này!`
+      canClaim: false,
+      reward: 0,
+      title: 'Weekly Reward',
+      message: 'Chưa có phần thưởng tuần nào'
     };
   }
 
   /**
    * Nhận thưởng hàng tuần
+   * CHỈ cập nhật claimed_at cho reward đã được tạo sẵn
    * @param {number} userId 
    * @returns {Promise<{success: boolean, reward: number, gems: number}>}
    */
@@ -79,31 +74,45 @@ class WeeklyRewardService {
       throw new Error(checkResult.message || 'Không thể nhận thưởng tuần này!');
     }
 
-    const weekStartDate = checkResult.weekStartDate.toISOString().split('T')[0];
-    const rewardAmount = checkResult.reward;
-    const currentElo = checkResult.currentElo;
-
     // Bắt đầu transaction
     const connection = await db.beginTransaction();
     
     try {
-      await connection.beginTransaction();
+      // Lấy reward pending
+      const pendingReward = await db.transactionQuery(
+        connection,
+        `SELECT * FROM weekly_reward_claims 
+         WHERE user_id = ? AND claimed_at IS NULL
+         ORDER BY week_start_date DESC
+         LIMIT 1`,
+        [userId]
+      );
+      
+      if (pendingReward.length === 0) {
+        throw new Error('Không tìm thấy phần thưởng tuần để nhận');
+      }
 
-      // 1. Lưu lịch sử nhận thưởng
-      await connection.query(
-        `INSERT INTO weekly_reward_claims (user_id, week_start_date, gems_received, elo_at_claim, claimed_at)
-         VALUES (?, ?, ?, ?, UTC_TIMESTAMP())`,
-        [userId, weekStartDate, rewardAmount, currentElo]
+      const reward = pendingReward[0];
+      
+      // Cập nhật gems (COALESCE để xử lý NULL)
+      await db.transactionQuery(
+        connection,
+        'UPDATE User SET gems = COALESCE(gems, 0) + ? WHERE user_id = ?',
+        [reward.gems_received, userId]
       );
 
-      // 2. Cập nhật gems
-      await connection.query(
-        'UPDATE User SET gems = gems + ? WHERE user_id = ?',
-        [rewardAmount, userId]
+      // Cập nhật claimed_at = NOW()
+      await db.transactionQuery(
+        connection,
+        `UPDATE weekly_reward_claims 
+         SET claimed_at = UTC_TIMESTAMP()
+         WHERE claim_id = ?`,
+        [reward.claim_id]
       );
 
-      // 3. Lấy số gems mới
-      const userResult = await connection.query(
+      // Lấy số gems mới
+      const userResult = await db.transactionQuery(
+        connection,
         'SELECT gems FROM User WHERE user_id = ?',
         [userId]
       );
@@ -112,16 +121,14 @@ class WeeklyRewardService {
 
       return {
         success: true,
-        reward: rewardAmount,
+        reward: reward.gems_received,
         gems: userResult[0].gems,
-        tierName: checkResult.tierName,
-        message: `Chúc mừng! Bạn đã nhận ${rewardAmount} gems cho tuần này!`
+        weekStartDate: reward.week_start_date,
+        message: `Chúc mừng! Bạn đã nhận ${reward.gems_received} gems cho tuần này!`
       };
     } catch (error) {
       await db.rollback(connection);
       throw error;
-    } finally {
-      connection.release();
     }
   }
 

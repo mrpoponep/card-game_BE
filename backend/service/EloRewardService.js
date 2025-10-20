@@ -27,6 +27,7 @@ class EloRewardService {
 
     /**
      * Kiểm tra trạng thái các milestone rewards cho user
+     * CHỈ kiểm tra các reward đã được tạo sẵn (bởi trigger khi đạt milestone)
      * @param {number} userId - ID người dùng
      * @returns {Promise<Object>} Thông tin về các milestone và trạng thái claim
      */
@@ -47,30 +48,31 @@ class EloRewardService {
             // Lấy mùa hiện tại
             const currentSeason = await this.getCurrentSeason();
 
-            // Lấy tất cả milestones và trạng thái đã claim
+            // Lấy tất cả milestones và trạng thái (dựa vào claimed_at)
             const milestones = await db.query(
                 `SELECT 
                     m.milestone_id,
                     m.elo_required,
                     m.gems_reward,
                     m.description,
-                    CASE 
-                        WHEN c.claim_id IS NOT NULL THEN 'claimed'
-                        WHEN ? >= m.elo_required THEN 'claimable'
-                        ELSE 'locked'
-                    END as status,
+                    c.claim_id,
                     c.claimed_at,
-                    c.elo_at_claim
+                    c.elo_at_claim,
+                    CASE 
+                        WHEN c.claimed_at IS NOT NULL THEN 'claimed'
+                        WHEN c.claim_id IS NOT NULL AND c.claimed_at IS NULL THEN 'claimable'
+                        ELSE 'locked'
+                    END as status
                 FROM elo_milestone_rewards m
                 LEFT JOIN elo_milestone_claims c 
                     ON m.milestone_id = c.milestone_id 
                     AND c.user_id = ? 
                     AND c.season_id = ?
                 ORDER BY m.elo_required ASC`,
-                [currentElo, userId, currentSeason.season_id]
+                [userId, currentSeason.season_id]
             );
 
-            // Tính tổng gems có thể nhận
+            // Tính tổng gems có thể nhận (chỉ từ các reward đã tạo nhưng chưa claim)
             const claimableGems = milestones
                 .filter(m => m.status === 'claimable')
                 .reduce((sum, m) => sum + m.gems_reward, 0);
@@ -104,83 +106,70 @@ class EloRewardService {
 
     /**
      * Nhận thưởng milestone
+     * CHỈ cập nhật claimed_at cho reward đã được tạo sẵn
      * @param {number} userId - ID người dùng
      * @param {number} milestoneId - ID milestone muốn claim
      * @returns {Promise<Object>} Kết quả claim
      */
     static async claimMilestoneReward(userId, milestoneId) {
-        const connection = await db.pool.getConnection();
+        const connection = await db.beginTransaction();
         
         try {
-            await connection.beginTransaction();
-
             // Lấy mùa hiện tại
             const currentSeason = await this.getCurrentSeason();
 
-            // Kiểm tra milestone có tồn tại không
-            const [milestoneRows] = await connection.query(
-                'SELECT * FROM elo_milestone_rewards WHERE milestone_id = ?',
-                [milestoneId]
-            );
-
-            if (milestoneRows.length === 0) {
-                throw new Error('Milestone không tồn tại');
-            }
-
-            const milestone = milestoneRows[0];
-
-            // Lấy thông tin user
-            const [userRows] = await connection.query(
-                'SELECT elo, gems FROM User WHERE user_id = ?',
-                [userId]
-            );
-
-            if (userRows.length === 0) {
-                throw new Error('Không tìm thấy người dùng');
-            }
-
-            const user = userRows[0];
-
-            // Kiểm tra ELO có đủ không
-            if (user.elo < milestone.elo_required) {
-                throw new Error(`Bạn cần đạt ${milestone.elo_required} ELO để nhận thưởng này`);
-            }
-
-            // Kiểm tra đã claim chưa trong mùa này
-            const [claimRows] = await connection.query(
-                `SELECT claim_id FROM elo_milestone_claims 
-                 WHERE user_id = ? AND milestone_id = ? AND season_id = ?`,
+            // Kiểm tra có reward pending không (claimed_at IS NULL)
+            const pendingReward = await db.transactionQuery(
+                connection,
+                `SELECT c.*, m.gems_reward, m.description, m.elo_required
+                 FROM elo_milestone_claims c
+                 JOIN elo_milestone_rewards m ON c.milestone_id = m.milestone_id
+                 WHERE c.user_id = ? 
+                   AND c.milestone_id = ? 
+                   AND c.season_id = ?
+                   AND c.claimed_at IS NULL`,
                 [userId, milestoneId, currentSeason.season_id]
             );
 
-            if (claimRows.length > 0) {
-                throw new Error('Bạn đã nhận thưởng milestone này trong mùa hiện tại rồi');
+            if (pendingReward.length === 0) {
+                throw new Error('Không có phần thưởng milestone này để nhận hoặc đã nhận rồi');
             }
 
-            // Thêm gems cho user
-            await connection.query(
-                'UPDATE User SET gems = gems + ? WHERE user_id = ?',
-                [milestone.gems_reward, userId]
+            const reward = pendingReward[0];
+
+            // Cập nhật gems cho user (COALESCE để xử lý NULL)
+            await db.transactionQuery(
+                connection,
+                'UPDATE User SET gems = COALESCE(gems, 0) + ? WHERE user_id = ?',
+                [reward.gems_received, userId]
             );
 
-            // Lưu lịch sử claim
-            await connection.query(
-                `INSERT INTO elo_milestone_claims 
-                 (user_id, milestone_id, season_id, gems_received, elo_at_claim) 
-                 VALUES (?, ?, ?, ?, ?)`,
-                [userId, milestoneId, currentSeason.season_id, milestone.gems_reward, user.elo]
+            // Cập nhật claimed_at = NOW()
+            await db.transactionQuery(
+                connection,
+                `UPDATE elo_milestone_claims 
+                 SET claimed_at = UTC_TIMESTAMP()
+                 WHERE claim_id = ?`,
+                [reward.claim_id]
             );
 
-            await connection.commit();
+            // Lấy gems balance mới
+            const userRows = await db.transactionQuery(
+                connection,
+                'SELECT gems FROM User WHERE user_id = ?',
+                [userId]
+            );
+
+            await db.commit(connection);
 
             return {
                 success: true,
-                gemsReceived: milestone.gems_reward,
-                newGemsBalance: user.gems + milestone.gems_reward,
+                gemsReceived: reward.gems_received,
+                newGemsBalance: userRows[0].gems,
                 milestone: {
-                    id: milestone.milestone_id,
-                    eloRequired: milestone.elo_required,
-                    description: milestone.description
+                    id: reward.milestone_id,
+                    eloRequired: reward.elo_required,
+                    description: reward.description
                 },
                 season: {
                     id: currentSeason.season_id,
@@ -188,11 +177,9 @@ class EloRewardService {
                 }
             };
         } catch (error) {
-            await connection.rollback();
+            await db.rollback(connection);
             console.error('Error claiming milestone reward:', error);
             throw error;
-        } finally {
-            connection.release();
         }
     }
 
