@@ -171,6 +171,30 @@ class User {
     return dbRows.map(row => new User(row));
   }
 
+  //tổng người chơi không bị banned
+  static async getTotalCount() {
+    const sql = 'SELECT COUNT(*) AS total FROM user WHERE banned = false';
+    try {
+      const rows = await db.query(sql);
+      return rows[0].total;
+    } catch (error) {
+      console.error('Error fetching total users:', error);
+      throw error;
+    }
+  }
+
+  //tổng người chơi bị banned
+  static async getTotalBannedCount() {
+    const sql = 'SELECT COUNT(*) AS totalBanned FROM user WHERE banned = true';
+    try {
+      const rows = await db.query(sql);
+      return rows[0].totalBanned;
+    } catch (error) {
+      console.error('Error fetching total users:', error);
+      throw error;
+    }
+  }
+
   /**
    * Tạo user mới trong database
    */
@@ -212,5 +236,7 @@ class User {
     return user;
   }
 }
+
+
 
 export default User;

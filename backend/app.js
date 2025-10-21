@@ -5,6 +5,9 @@ import cors from 'cors';
 import rankingRoute from './route/RankingRoute.js';
 import createGameRoom from './route/createRoomRoute.js';
 import findRoomRoute from "./route/findRoomRoute.js";
+import adminRoutes from './route/adminRoutes.js';
+import listRoomsRoute from "./route/listRoomsRoute.js";
+
 const app = express();
 
 // Configure CORS for Express
@@ -109,5 +112,7 @@ app.use('/api', rankingRoute);
 
 // REST API Routes - PostgreSQL integration
 app.use("/api/room", createGameRoom);
+app.use("/api/room", listRoomsRoute);
 app.use("/api/room", findRoomRoute);
+app.use('/api/admin', adminRoutes);
 export default app;

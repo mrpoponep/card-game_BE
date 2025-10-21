@@ -61,3 +61,26 @@ export const createTable = async (
 
     return rows[0];
 };
+
+//Lấy danh sách bàn
+/**
+ * 🧩 Lấy danh sách các bàn theo trạng thái public/private
+ * @param {boolean} isPrivate - true (lấy bàn private) hoặc false (lấy bàn public)
+ * @returns {Promise<Array>} Danh sách các bàn
+ */
+export const listTables = async (isPrivate = false) => {
+    const sql = `
+    SELECT table_id, room_code, min_players, max_players, small_blind, max_blind,
+           min_buy_in, max_buy_in, rake, is_private, status, created_by
+    FROM table_info
+    WHERE is_private = ?
+    ORDER BY table_id DESC
+  `;
+  try {
+    const rows = await db.query(sql, [isPrivate]);
+    return rows;
+  } catch (error) {
+    console.error('Error fetching table list:', error);
+    throw error;
+  }
+};
