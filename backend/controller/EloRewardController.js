@@ -7,9 +7,6 @@ class EloRewardController {
      */
     static async checkRewards(req, res) {
         try {
-            console.log('🔍 req.user:', req.user); // Debug log
-            console.log('🔍 req.headers:', req.headers); // Debug headers
-            
             if (!req.user || !req.user.userId) {
                 return res.status(401).json({
                     success: false,

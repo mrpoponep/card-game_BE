@@ -36,7 +36,6 @@ class DailyRewardService {
        WHERE user_id = ? AND year = ? AND month = ?`,
       [userId, currentYear, currentMonth]
     );
-    console.log('Login days result:', loginDaysResult);
     const loginDayCount = parseInt(loginDaysResult[0].login_count) + 1; // Số ngày tiếp theo
 
     // 3. Kiểm tra giới hạn (max 31 ngày)
