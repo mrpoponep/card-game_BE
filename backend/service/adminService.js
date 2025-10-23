@@ -1,4 +1,5 @@
 import User from '../model/User.js';
+import { getOnlineCount } from '../socket/socketManager.js';
 
 class AdminService {
   static async getTotalPlayers() {
@@ -11,6 +12,12 @@ class AdminService {
   static async getTotalBannedPlayers() {
     const totalBanned = await User.getTotalBannedCount();
     return totalBanned;
+  }
+
+  // lấy só lượng người chơi trực tuyến
+  static async getOnlinePlayers() {
+    const count = getOnlineCount(); 
+    return count;
   }
 }
   export default AdminService;

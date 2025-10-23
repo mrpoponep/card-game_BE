@@ -2,6 +2,7 @@ import http from 'http';
 import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import app from './app.js';
+import { initSocketManager } from './socket/socketManager.js';
 
 // Load environment variables
 dotenv.config();
@@ -19,6 +20,7 @@ const io = new Server(server, {
   }
 });
 
+initSocketManager(io);
 // Socket.io connection handling
 io.on('connection', (socket) => {
   console.log('🔗 User connected:', socket.id);

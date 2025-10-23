@@ -9,5 +9,6 @@ const upload = multer(); // Sử dụng bộ nhớ tạm để xử lý form-dat
 router.get('/total-players', AdminController.getTotalPlayers);
 // GET /api/admin/total-banned-players
 router.get('/total-banned-players', AdminController.getTotalBannedPlayers);
-
+// GET /api/admin/online-players
+router.get('/online-players', AdminController.getOnlinePlayers);
 export default router;

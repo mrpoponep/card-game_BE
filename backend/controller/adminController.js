@@ -38,6 +38,25 @@ class AdminController {
         message: error.message
       });
     }
-}}
+  }
+
+  // lấy số lượng người chơi trực tuyến
+  static async getOnlinePlayers(req, res) {
+    try {
+      // Gọi service
+      const total = await AdminService.getOnlinePlayers();
+      
+      res.json({
+        success: true,
+        onlinePlayers: total
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+}
 
 export default AdminController;
