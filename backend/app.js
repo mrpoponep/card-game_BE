@@ -16,6 +16,7 @@ import eloRewardRoute from './route/EloRewardRoute.js';
 import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
 import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
 import findRoomRoute from "./route/findRoomRoute.js";
+import findRoomRoute from "./route/findRoomRoute.js";
 const app = express();
 
 // Configure CORS for Express
