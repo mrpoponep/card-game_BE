@@ -11,4 +11,8 @@ router.get('/total-players', AdminController.getTotalPlayers);
 router.get('/total-banned-players', AdminController.getTotalBannedPlayers);
 // GET /api/admin/online-players
 router.get('/online-players', AdminController.getOnlinePlayers);
+// GET /api/admin/coin-stats?from=YYYY-MM-DD&to=YYYY-MM-DD
+router.get('/coin-stats', AdminController.getCoinStats);
+// GET /api/admin/player-stats?from=YYYY-MM-DD&to=YYYY-MM-DD
+router.get('/player-stats', AdminController.getPlayerStats);
 export default router;
