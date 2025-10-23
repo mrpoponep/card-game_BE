@@ -1,8 +1,8 @@
 # Database Configuration
 DB_HOST=localhost
 DB_PORT=3306
-DB_USER=root        # Thay bằng tên đăng nhập MySql của máy chủ
-DB_PASSWORD=0000    # Thay bằng mật khẩu MySql của máy chủ
+DB_USER=root
+DB_PASSWORD=1234
 DB_NAME=poker_system
 
 # Connection Pool Settings
@@ -14,5 +14,21 @@ DB_TIMEOUT=60000
 DB_SSL=false
 
 # Application
-NODE_ENV=test
+NODE_ENV=development
 PORT=3000
+
+# Auth secrets
+ACCESS_TOKEN_SECRET=your_access_token_secret_here
+REFRESH_TOKEN_SECRET=your_refresh_token_secret_here
+ACCESS_TOKEN_EXPIRES_IN=15m
+REFRESH_TOKEN_EXPIRES_DAYS=30
+
+# Email configuration (Gmail)
+EMAIL_SERVICE=gmail
+EMAIL_USER=btthanh2004@gmail.com
+EMAIL_PASSWORD=trbo vjlt dpwb bviq
+EMAIL_FROM=Card Game <btthanh2004@gmail.com>
+RESET_PASSWORD_TOKEN_EXPIRES_MINUTES=15
+
+# Admin contact
+ADMIN_CONTACT_EMAIL=btthanh2004@gmail.com

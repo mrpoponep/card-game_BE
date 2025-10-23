@@ -1,11 +1,22 @@
+// Load environment variables FIRST before any other imports
+import './config/dotenv-config.js';
+
 import express from 'express';
 import cors from 'cors';
 import path from 'path'; // 🔹 THÊM DÒNG NÀY
 import { fileURLToPath } from 'url'; // 🔹 THÊM DÒNG NÀY
+import cookieParser from 'cookie-parser';
+import { authenticateJWT } from './middleware/auth.js';
+import rateLimit from 'express-rate-limit';
 
 // Import routes
 import rankingRoute from './route/RankingRoute.js';
 import createGameRoom from './route/createRoomRoute.js';
+import authRoute from './route/AuthRoute.js';
+import dailyRewardRoute from './route/DailyRewardRoute.js';
+import eloRewardRoute from './route/EloRewardRoute.js';
+import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
+import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
 import findRoomRoute from "./route/findRoomRoute.js";
 import authRoute from './route/authRoute.js'; // 🔹 THÊM DÒNG NÀY
 
@@ -24,6 +35,15 @@ app.use(cors({
 // Basic middleware
 app.use(express.json());               // Cho JSON data
 app.use(express.urlencoded({ extended: true })); // Cho form-urlencoded
+app.use(cookieParser());
+
+// Rate limit: 100 requests/15 phút mỗi IP
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { success: false, message: 'Bạn gửi quá nhiều yêu cầu, vui lòng thử lại sau.' }
+});
+app.use('/api', apiLimiter);
 
 // 🔹 Phục vụ file tĩnh (cho avatars)
 // __dirname đang là /Server/backend
@@ -119,11 +139,31 @@ app.get('/', (req, res) => {
 });
 
 // API Routes
-app.use('/api', rankingRoute);
-app.use('/api/auth', authRoute); // 🔹 THÊM DÒNG NÀY
+app.use('/api/auth', authRoute);
 
-// REST API Routes - PostgreSQL integration
+// Bảo vệ tất cả các route /api ngoại trừ /api/auth/login, /api/auth/refresh, /api/auth/logout
+app.use((req, res, next) => {
+  const openAuthPaths = [
+    '/api/auth/login',
+    '/api/auth/refresh',
+    '/api/auth/logout',
+    '/api/auth/send-reset-otp',
+    '/api/auth/verify-otp-reset-password'
+  ];
+  // Nếu path bắt đầu bằng 1 trong các openAuthPaths thì bỏ qua xác thực
+  if (openAuthPaths.some(path => req.path === path || req.path.startsWith(path + '/'))) {
+    return next();
+  }
+  return authenticateJWT(req, res, next);
+});
+
+app.use('/api/rankings', rankingRoute);
 app.use("/api/room", createGameRoom);
+app.use('/api/daily-reward', dailyRewardRoute);
+app.use('/api/elo-reward', eloRewardRoute);
+app.use('/api/weekly-reward', weeklyRewardRoute);
+app.use('/api/monthly-reward', monthlyRewardRoute);
+
 app.use("/api/room", findRoomRoute);
 
 export default app;

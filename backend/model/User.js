@@ -33,6 +33,39 @@ class User {
     }
   }
 
+  dispose() {
+    const index = User.instances.indexOf(this);
+    if (index !== -1) {
+      this.save();
+      User.instances.splice(index, 1);
+    }
+  }
+
+  setBanned(banned) {
+    this.banned = banned;
+    this.save();
+  }
+
+  setElo(elo) {
+    if (elo < 0) {
+      throw new Error('Elo cannot be negative');
+    }
+    this.elo = elo;
+    this.save();
+  }
+
+  async getRank() {
+    // Olympic ranking: người cùng ELO có cùng rank
+    // Rank = số người có ELO STRICTLY GREATER + 1
+    // Ví dụ: 2 người ELO 2500 (rank 1), 1 người ELO 2000 (rank 3)
+    const result = await db.query(
+      "SELECT COUNT(*) + 1 AS 'rank' FROM user WHERE elo > ? AND banned = false", 
+      [this.elo]
+    );
+    return result[0].rank;
+  }
+
+  // 🔄 SERIALIZATION
   toJSON() {
     return {
       user_id: this.user_id,
