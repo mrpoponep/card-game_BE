@@ -15,7 +15,7 @@ class DailyRewardService {
     // 1. Kiểm tra đã claim hôm nay chưa (dựa vào DATE của claimed_at)
     const todayClaimed = await db.query(
       `SELECT * FROM daily_rewards 
-       WHERE user_id = ? AND DATE(claimed_at) = CURDATE()`,
+       WHERE user_id = ? AND DATE(claimed_at) = UTC_DATE()`,
       [userId]
     );
 
@@ -36,8 +36,8 @@ class DailyRewardService {
        WHERE user_id = ? AND year = ? AND month = ?`,
       [userId, currentYear, currentMonth]
     );
-
-    const loginDayCount = loginDaysResult[0].login_count + 1; // Số ngày tiếp theo
+    console.log('Login days result:', loginDaysResult);
+    const loginDayCount = parseInt(loginDaysResult[0].login_count) + 1; // Số ngày tiếp theo
 
     // 3. Kiểm tra giới hạn (max 31 ngày)
     if (loginDayCount > 31) {

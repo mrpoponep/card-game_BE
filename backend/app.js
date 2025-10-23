@@ -18,7 +18,6 @@ import eloRewardRoute from './route/EloRewardRoute.js';
 import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
 import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
 import findRoomRoute from "./route/findRoomRoute.js";
-import authRoute from './route/authRoute.js'; // 🔹 THÊM DÒNG NÀY
 
 const app = express();
 
