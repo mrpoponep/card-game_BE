@@ -16,7 +16,6 @@ import eloRewardRoute from './route/EloRewardRoute.js';
 import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
 import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
 import findRoomRoute from "./route/findRoomRoute.js";
-import findRoomRoute from "./route/findRoomRoute.js";
 const app = express();
 
 // Configure CORS for Express
@@ -128,7 +127,6 @@ app.get('/', (req, res) => {
 // API Routes
 app.use('/api/auth', authRoute);
 
-// Bảo vệ tất cả các route /api ngoại trừ /api/auth/login, /api/auth/refresh, /api/auth/logout
 // Bảo vệ tất cả các route /api ngoại trừ /api/auth/login, /api/auth/refresh, /api/auth/logout
 app.use((req, res, next) => {
   const openAuthPaths = [
