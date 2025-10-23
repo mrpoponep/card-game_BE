@@ -1,5 +1,5 @@
 // controller/ReportController.js
-import Report from '../model/Report.js';
+import ReportService from '../service/ReportService.js';
 
 /**
  * Report Controller - Xử lý các request liên quan đến báo cáo người chơi
@@ -20,19 +20,17 @@ class ReportController {
         });
       }
 
-      // Tạo report mới
-      const report = new Report({
+      // Sử dụng ReportService để tạo report
+      const result = await ReportService.createReport({
         reported_id,
         type,
         reason
       });
 
-      await report.save();
-
       return res.status(201).json({
         success: true,
-        message: 'Report created successfully',
-        data: report.toJSON()
+        message: result.message,
+        data: result.report
       });
     } catch (error) {
       console.error('Error creating report:', error);
