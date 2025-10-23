@@ -84,3 +84,21 @@ export const listTables = async (isPrivate = false) => {
     throw error;
   }
 };
+
+export const getTableMetrics = async () => {
+    const sql = `
+    SELECT 
+      COUNT(*) AS totalTables,
+      SUM(CASE WHEN is_private = false THEN 1 ELSE 0 END) AS publicTables,
+      SUM(CASE WHEN is_private = true THEN 1 ELSE 0 END) AS privateTables,
+      SUM(CASE WHEN status = 'playing' THEN 1 ELSE 0 END) AS activeTables
+   FROM table_info
+  `;
+  try {
+    const rows = await db.query(sql);
+    return rows[0];
+  } catch (error) {
+    console.error('Error fetching table metrics:', error);
+    throw error;
+  }
+};
