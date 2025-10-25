@@ -16,6 +16,8 @@ const io = new Server(server, {
   }
 });
 
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'youraccesstokensecret';
+
 // --- Deck Utilities ---
 const SUITS = ['S', 'H', 'D', 'C']; // Spades, Hearts, Diamonds, Clubs
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
