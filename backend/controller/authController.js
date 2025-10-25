@@ -62,7 +62,7 @@ export default class AuthController {
       path: '/api/auth',
     });
     // 7. Trả về access token
-    res.json({ success: true, accessToken, user: { userId: user.user_id, username: user.username, role: user.role } });
+    res.json({ success: true, accessToken, user: { userId: user.user_id, username: user.username, role: user.role, balance: Math.floor(user.balance) || 0, elo: user.elo } });
   }
 
   static async refresh(req, res) {
@@ -103,7 +103,7 @@ export default class AuthController {
     });
     // 5. Trả về access token mới
     const accessToken = jwt.sign({ userId: user.user_id, username: user.username, role: user.role }, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
-    res.json({ success: true, accessToken, user: { userId: user.user_id, username: user.username, role: user.role } });
+    res.json({ success: true, accessToken, user: { userId: user.user_id, username: user.username, role: user.role, balance: Math.floor(user.balance) || 0, elo:user.elo } });
   }
 
   static async logout(req, res) {

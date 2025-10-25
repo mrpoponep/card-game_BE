@@ -3,8 +3,9 @@ import './config/dotenv-config.js';
 
 import express from 'express';
 import cors from 'cors';
-import path from 'path'; // 🔹 THÊM DÒNG NÀY
-import { fileURLToPath } from 'url'; // 🔹 THÊM DÒNG NÀY
+import path from 'path';
+import fs from 'fs'; 
+import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 import { authenticateJWT } from './middleware/auth.js';
 import rateLimit from 'express-rate-limit';
@@ -44,13 +45,42 @@ const apiLimiter = rateLimit({
 });
 app.use('/api', apiLimiter);
 
-// 🔹 Phục vụ file tĩnh (cho avatars)
-// __dirname đang là /Server/backend
-// chúng ta cần đi lùi 1 cấp ra /Server, rồi vào /public
+// Thư mục các file public
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+// 🔹 Fallback cho avatar mặc định nếu file không tồn tại
+app.get('/avatar/*', (req, res) => {
+  const requestedPath = req.params[0]; // Lấy phần sau /avatar/ (không có đuôi)
+  
+  const avatarDir = path.join(__dirname, '..', 'public', 'avatar');
+  
+  // Lấy danh sách files trong thư mục avatar
+  let files;
+  try {
+    files = fs.readdirSync(avatarDir);
+  } catch (error) {
+    console.error('Error reading avatar directory:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+  
+  // Tìm file có tên bắt đầu bằng requestedPath + '.'
+  const matchingFile = files.find(file => file.startsWith(requestedPath + '.'));
+  
+  if (matchingFile) {
+    const fullPath = path.join(avatarDir, matchingFile);
+    return res.sendFile(fullPath);
+  } else {
+    // Trả về avatar mặc định
+    const defaultPath = path.join(avatarDir, 'default.png');
+    if (fs.existsSync(defaultPath)) {
+      return res.sendFile(defaultPath);
+    } else {
+      return res.status(404).json({ success: false, message: 'Avatar not found' });
+    }
+  }
+});
+
 // 🔍 Request & Response logger middleware
-// ... (giữ nguyên middleware logger của bạn) ...
 app.use((req, res, next) => {
   const startTime = Date.now();
   const timestamp = new Date().toISOString();
@@ -147,7 +177,8 @@ app.use((req, res, next) => {
     '/api/auth/refresh',
     '/api/auth/logout',
     '/api/auth/send-reset-otp',
-    '/api/auth/verify-otp-reset-password'
+    '/api/auth/verify-otp-reset-password',
+    '/avatar' 
   ];
   // Nếu path bắt đầu bằng 1 trong các openAuthPaths thì bỏ qua xác thực
   if (openAuthPaths.some(path => req.path === path || req.path.startsWith(path + '/'))) {

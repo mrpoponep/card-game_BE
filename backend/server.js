@@ -5,6 +5,7 @@ import http from 'http';
 import { Server } from 'socket.io';
 import app from './app.js';
 import RewardDistributionService from './service/RewardDistributionService.js';
+import jwt from 'jsonwebtoken';
 
 const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
@@ -231,8 +232,19 @@ const handleLeaveRoom = (socket) => {
 
 
 // --- Socket.IO Connection Logic ---
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token; // Client gửi token trong auth
+  if (!token) return next(new Error('Authentication error'));
+  
+  jwt.verify(token, ACCESS_TOKEN_SECRET, (err, payload) => {
+    if (err) return next(new Error('Invalid token'));
+    socket.user = payload; // Gán user vào socket
+    next();
+  });
+});
+
 io.on('connection', (socket) => {
-  console.log(`🔗 User connected: ${socket.id}`);
+  console.log(`User ${socket.user.username} connected`); // Giờ đã biết user
 
   socket.on('joinRoom', ({ roomCode, user, settings }) => {
     if (!user || !roomCode) return;
