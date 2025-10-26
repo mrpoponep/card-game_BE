@@ -175,7 +175,6 @@ app.use((req, res, next) => {
   const openAuthPaths = [
     '/api/auth/login',
     '/api/auth/refresh',
-    '/api/auth/logout',
     '/api/auth/send-reset-otp',
     '/api/auth/verify-otp-reset-password',
     '/avatar' 

@@ -4,7 +4,8 @@ import User from "../model/User.js"; // 🔹 1. IMPORT USER MODEL
 
 export const findRoom = async (req, res) => {
   const { code } = req.params;
-  const { userId } = req.query; // 🔹 2. LẤY userId TỪ QUERY
+  // Lấy user id từ access token (middleware authenticateJWT sẽ gán req.user)
+  const userId = req.user?.user_id || req.user?.userId;
 
   try {
     // 🔹 3. LẤY THÔNG TIN PHÒNG
@@ -23,7 +24,7 @@ export const findRoom = async (req, res) => {
     if (!userId) {
       return res.status(400).json({ message: "Thiếu ID người dùng." });
     }
-    
+
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "Không tìm thấy người dùng." });

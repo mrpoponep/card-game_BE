@@ -6,6 +6,8 @@ import { Server } from 'socket.io';
 import app from './app.js';
 import RewardDistributionService from './service/RewardDistributionService.js';
 import jwt from 'jsonwebtoken';
+import { isAccessTokenValidForUser } from './authTokenStore.js';
+import User from './model/User.js';
 
 const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
@@ -51,13 +53,17 @@ const sendFullRoomStateUpdate = (roomCode) => {
 
   const room = roomState[roomCode];
   const currentStateData = {
-    players: room.players.map(p => ({ // Send public player info
-      user_id: p.user.user_id,
-      username: p.user.username,
-      balance: p.user.balance, // Maybe send chip count later
-      avatar_url: p.user.avatar_url,
-      // Add game-specific info like 'isTurn', 'betAmount', etc. later
-    })),
+    players: room.players.map(p => {
+      // Try to read latest user info from the socket (use socket.user)
+      const s = io.of('/').sockets.get(p.socketId);
+      const u = s?.user || {};
+      return ({ // Send public player info
+        user_id: u.user_id || p.userId,
+        username: u.username || 'Unknown',
+        balance: u.balance || 0,
+        // Add game-specific info like 'isTurn', 'betAmount', etc. later
+      });
+    }),
     settings: room.settings,
     gameState: {
       status: room.gameState?.status || 'waiting', // 'waiting', 'countdown', 'dealing', 'playing', 'finished'
@@ -74,9 +80,9 @@ const sendFullRoomStateUpdate = (roomCode) => {
   // Send private hole cards to each player individually
   if (room.gameState?.status === 'dealing' || room.gameState?.status === 'playing') {
     room.players.forEach(player => {
-      const hand = room.gameState.hands?.[player.user.user_id] || [];
+      const hand = room.gameState.hands?.[player.userId] || [];
       io.to(player.socketId).emit('updateMyHand', hand);
-      // console.log(`Sent hand ${JSON.stringify(hand)} to ${player.user.username}`);
+      // console.log(`Sent hand ${JSON.stringify(hand)} to ${player.userId}`);
     });
   }
 
@@ -141,10 +147,10 @@ const dealNewHand = (roomCode) => {
 
    // 2. Deal 2 cards to each player
    room.players.forEach(player => {
-     room.gameState.hands[player.user.user_id] = [
-       room.gameState.deck.pop(),
-       room.gameState.deck.pop(),
-     ];
+    room.gameState.hands[player.userId] = [
+      room.gameState.deck.pop(),
+      room.gameState.deck.pop(),
+    ];
    });
 
    // 3. Update status (e.g., to 'playing' or a specific betting round)
@@ -201,7 +207,8 @@ const handleLeaveRoom = (socket) => {
     const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
 
     if (playerIndex > -1) {
-      playerLeftUsername = room.players[playerIndex].user.username;
+      // Prefer the username on the socket (most up-to-date); fall back to stored player.userId
+      playerLeftUsername = socket.user?.username || room.players[playerIndex].userId;
       room.players.splice(playerIndex, 1);
       roomCodeToUpdate = roomCode;
       remainingPlayers = room.players.length;
@@ -236,11 +243,20 @@ const handleLeaveRoom = (socket) => {
 // --- Socket.IO Connection Logic ---
 io.use((socket, next) => {
   const token = socket.handshake.auth.token; // Client gửi token trong auth
-  if (!token) return next(new Error('Authentication error'));
+  if (!token) return next(new Error(JSON.stringify({ code: 'AUTH_REQUIRED', message: 'Bạn cần đăng nhập để sử dụng tính năng này.' })));
   
-  jwt.verify(token, ACCESS_TOKEN_SECRET, (err, payload) => {
-    if (err) return next(new Error('Invalid token'));
-    socket.user = payload; // Gán user vào socket
+  jwt.verify(token, ACCESS_TOKEN_SECRET, async (err, payload) => {
+    if (err) return next(new Error(JSON.stringify({ code: 'AUTH_REQUIRED', message: 'Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.' })));
+    const userId = payload?.userId || payload?.user_id;
+    if (!userId || !isAccessTokenValidForUser(userId, token)) {
+      return next(new Error(JSON.stringify({ code: 'AUTH_REQUIRED', message: 'Access token đã bị thu hồi hoặc không hợp lệ. Vui lòng đăng nhập lại.' })));
+    }
+    socket.user = await User.findById(userId); // Giờ có thể lấy thông tin user từ DB
+    if (!socket.user) {
+      return next(new Error(JSON.stringify({ code: 'AUTH_REQUIRED', message: 'Người dùng không tồn tại. Vui lòng đăng nhập lại.' })));
+    }
+    // Lưu token vào socket để có thể so sánh với kết nối khác
+    socket.authToken = token;
     next();
   });
 });
@@ -248,7 +264,35 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   console.log(`User ${socket.user.username} connected`); // Giờ đã biết user
 
-  socket.on('joinRoom', ({ roomCode, user, settings }) => {
+  // Khi một kết nối mới xác thực thành công, ngắt các socket cũ cùng user
+  try {
+    const newUserId = socket.user.user_id;
+    const newToken = socket.authToken;
+    if (newUserId && newToken) {
+      for (const [sid, s] of io.of('/').sockets) {
+        if (sid === socket.id) continue; // skip self
+        const existingUserId = s.user.user_id;
+        const existingToken = s.authToken;
+        if (existingUserId && String(existingUserId) === String(newUserId) && existingToken !== newToken) {
+          // Thông báo trước khi ngắt kết nối
+          try {
+            s.emit('forceLogout', { message: 'Tài khoản đã được đăng nhập ở thiết bị khác' });
+          } catch (e) {
+            // ignore
+          }
+          // Cho client 200ms để nhận event, sau đó ngắt kết nối
+          setTimeout(() => {
+            try { s.disconnect(true); } catch (e) { /* ignore */ }
+          }, 200);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ Lỗi khi xử lý ngắt kết nối socket cũ:', e.message);
+  }
+  socket.on('joinRoom', ({ roomCode, settings }) => {
+    // Ignore client-provided user object; use server-side socket.user
+    const user = socket.user;
     if (!user || !roomCode) return;
 
     socket.join(roomCode);
@@ -278,9 +322,10 @@ io.on('connection', (socket) => {
     const room = roomState[roomCode];
 
     // Add player if not already in and not spectator FOR THE GAME LOGIC (still join socket room)
-    const existingPlayer = room.players.find(p => p.user.user_id === user.user_id);
+    const existingPlayer = room.players.find(p => p.userId === user.user_id);
     if (!existingPlayer) {
-       room.players.push({ socketId: socket.id, user });
+       // store only socketId and userId; use socket.user for authoritative user info
+       room.players.push({ socketId: socket.id, userId: user.user_id });
        console.log(`👤 User ${user.username} added to player list for ${roomCode}`);
     } else {
         // Update socket ID if user reconnects

@@ -3,9 +3,9 @@ import jwt from 'jsonwebtoken';
 import db from '../model/DatabaseConnection.js';
 import crypto from 'crypto';
 import { sendPasswordResetOTP, sendEmailVerificationOTP } from '../service/emailService.js';
+import { setActiveAccessToken, revokeActiveAccessToken } from '../authTokenStore.js';
 
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'access_secret';
-const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'refresh_secret';
 const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN || '15m';
 const REFRESH_TOKEN_EXPIRES_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRES_DAYS, 10) || 30;
 const RESET_PASSWORD_TOKEN_EXPIRES_MINUTES = parseInt(process.env.RESET_PASSWORD_TOKEN_EXPIRES_MINUTES, 10) || 15;
@@ -42,6 +42,12 @@ export default class AuthController {
     
     // 3. Tạo access token
     const accessToken = jwt.sign({ userId: user.user_id, username: user.username, role: user.role }, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
+    // Lưu access token hiện tại cho user (vô hiệu hóa token cũ ngay)
+    try {
+      setActiveAccessToken(user.user_id, accessToken);
+    } catch (e) {
+      console.warn('Failed to set active access token in store', e);
+    }
     
     // 4. Tạo refresh token
     const refreshToken = crypto.randomBytes(64).toString('hex');
@@ -53,11 +59,12 @@ export default class AuthController {
       'INSERT INTO refresh_tokens (user_id, token_hash, issued_at, expires_at, device_info) VALUES (?, ?, ?, ?, ?)',
       [user.user_id, refreshTokenHash, now, expiresAt, getDeviceInfo(req)]
     );
+    console.log(`User ${user.username} logged in. Remember: ${remember}`);
     // 6. Đặt cookie httpOnly
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: remember ? REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000 : undefined,
       path: '/api/auth',
     });
@@ -103,6 +110,11 @@ export default class AuthController {
     });
     // 5. Trả về access token mới
     const accessToken = jwt.sign({ userId: user.user_id, username: user.username, role: user.role }, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
+    try {
+      setActiveAccessToken(user.user_id, accessToken);
+    } catch (e) {
+      console.warn('Failed to set active access token in store', e);
+    }
     res.json({ success: true, accessToken, user: { userId: user.user_id, username: user.username, role: user.role, balance: Math.floor(user.balance) || 0, elo:user.elo } });
   }
 
@@ -113,6 +125,29 @@ export default class AuthController {
       await db.query('UPDATE refresh_tokens SET revoked_at = UTC_TIMESTAMP() WHERE token_hash = ?', [refreshTokenHash]);
       res.clearCookie('refresh_token', { path: '/api/auth' });
     }
+    // Nếu route được bảo vệ bởi middleware authenticateJWT thì req.user có thể được dùng
+    try {
+      const userId = req.user?.userId || req.user?.user_id;
+      if (userId) {
+        revokeActiveAccessToken(userId);
+      } else {
+        // fallback: nếu không có req.user, cố gắng revoke bằng Authorization header
+        const authHeader = req.headers['authorization'];
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          const token = authHeader.split(' ')[1];
+          try {
+            const payload = jwt.verify(token, ACCESS_TOKEN_SECRET);
+            const uid = payload?.userId || payload?.user_id;
+            if (uid) revokeActiveAccessToken(uid);
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+    } catch (e) {
+      // ignore errors during revoke
+    }
+
     res.json({ success: true, message: 'Đã đăng xuất' });
   }
 

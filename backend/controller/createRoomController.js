@@ -4,18 +4,20 @@ import User from "../model/User.js"; // 🔹 1. IMPORT USER MODEL
 
 export const createGameRoom = async (req, res) => {
   try {
-    // 🔹 2. NHẬN YÊU CẦU ĐƠN GIẢN TỪ MODAL
     const {
       small_blind, // "Mức cược", vd: 5000
       max_players, // "Số người", vd: 4
-      user_id      // ID người tạo
     } = req.body;
+
+    // Lấy user_id từ access token đã được middleware đặt vào req.user
+    const user_id = req.user?.user_id || req.user?.userId;
 
     // 🔹 3. KIỂM TRA SỐ DƯ
     if (!user_id || !small_blind || !max_players) {
       return res.status(400).json({ message: "Thiếu thông tin tạo phòng." });
     }
 
+    // Tải thông tin user từ DB (xác thực rằng user tồn tại và có đủ balance)
     const user = await User.findById(user_id);
     if (!user) {
       return res.status(404).json({ message: "Không tìm thấy người dùng." });
