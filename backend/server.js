@@ -82,7 +82,6 @@ const sendFullRoomStateUpdate = (roomCode) => {
     room.players.forEach(player => {
       const hand = room.gameState.hands?.[player.userId] || [];
       io.to(player.socketId).emit('updateMyHand', hand);
-      // console.log(`Sent hand ${JSON.stringify(hand)} to ${player.userId}`);
     });
   }
 

@@ -14,7 +14,6 @@ class User {
     elo = 1000,
     avatar_url = null,
   }) {
-    // 🔹 CHỈ GÁN GIÁ TRỊ, không gọi hàm async ở đây
     this.user_id = user_id;
     this.username = username;
     this.password = password;

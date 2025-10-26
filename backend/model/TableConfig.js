@@ -27,13 +27,13 @@ export const createTable = async (
     is_private,
     created_by
 ) => {
-  // 🔹 Tạo room_code duy nhất
+  // Tạo room_code duy nhất
   let room_code;
   do {
     room_code = generateRoomCode();
   } while (await isRoomCodeExists(room_code));
 
-  // 🔹 Thực hiện insert
+  // Thực hiện insert
   const result = await db.query(
     `INSERT INTO table_info (
     room_code, min_players, max_players, small_blind, max_blind,
@@ -53,7 +53,6 @@ export const createTable = async (
     ]
   );
 
-  // 🔹 🔹 🔹 SỬA LỖI Ở ĐÂY 🔹 🔹 🔹
   // Lấy TOÀN BỘ thông tin bàn vừa tạo, thay vì chỉ 3 trường
   const rows = await db.query(
     `SELECT * FROM table_info WHERE table_id = ?`, // Dùng SELECT *

@@ -12,17 +12,17 @@ import rateLimit from 'express-rate-limit';
 
 // Import routes
 import rankingRoute from './route/RankingRoute.js';
-import createGameRoom from './route/createRoomRoute.js';
+import roomRoute from './route/roomRoute.js';
 import authRoute from './route/AuthRoute.js';
 import dailyRewardRoute from './route/DailyRewardRoute.js';
 import eloRewardRoute from './route/EloRewardRoute.js';
 import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
 import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
-import findRoomRoute from "./route/findRoomRoute.js";
+
 
 const app = express();
 
-// 🔹 Cấu hình __dirname cho ES Modules
+// Cấu hình __dirname cho ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -48,7 +48,7 @@ app.use('/api', apiLimiter);
 // Thư mục các file public
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// 🔹 Fallback cho avatar mặc định nếu file không tồn tại
+// Fallback cho avatar mặc định nếu file không tồn tại
 app.get('/avatar/*', (req, res) => {
   const requestedPath = req.params[0]; // Lấy phần sau /avatar/ (không có đuôi)
   
@@ -187,12 +187,12 @@ app.use((req, res, next) => {
 });
 
 app.use('/api/rankings', rankingRoute);
-app.use("/api/room", createGameRoom);
+app.use('/api/room', roomRoute);
 app.use('/api/daily-reward', dailyRewardRoute);
 app.use('/api/elo-reward', eloRewardRoute);
 app.use('/api/weekly-reward', weeklyRewardRoute);
 app.use('/api/monthly-reward', monthlyRewardRoute);
 
-app.use("/api/room", findRoomRoute);
+// (room routes consolidated in /api/room via roomRoute)
 
 export default app;
