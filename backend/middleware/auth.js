@@ -19,6 +19,7 @@ export function authenticateJWT(req, res, next) {
       return res.status(401).json({ success: false, message: 'Access token đã bị thu hồi hoặc không hợp lệ. Vui lòng đăng nhập lại.' });
     }
     req.user = payload;
+    console.log(payload);
     next();
   });
 }

@@ -49,37 +49,67 @@ export default class AuthController {
       console.warn('Failed to set active access token in store', e);
     }
     
-    // 4. Tạo refresh token
-    const refreshToken = crypto.randomBytes(64).toString('hex');
-    const refreshTokenHash = hashToken(refreshToken);
+    // 4. Prepare tokens and session id
     const now = new Date();
     const expiresAt = new Date(now.getTime() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
-    // 5. Lưu refresh token vào DB
-    await db.query(
-      'INSERT INTO refresh_tokens (user_id, token_hash, issued_at, expires_at, device_info) VALUES (?, ?, ?, ?, ?)',
-      [user.user_id, refreshTokenHash, now, expiresAt, getDeviceInfo(req)]
-    );
-    console.log(`User ${user.username} logged in. Remember: ${remember}`);
-    // 6. Đặt cookie httpOnly
-    res.cookie('refresh_token', refreshToken, {
+
+    // We'll always create a sessionId for this login. For non-remember, we'll only create the per-session token.
+    // For remember=true, we'll create both: a generic persistent token and a per-session token (two cookies).
+    const sessionId = crypto.randomBytes(32).toString('hex');
+
+    // Per-session token
+    const sessionRefreshToken = crypto.randomBytes(64).toString('hex');
+    const sessionRefreshTokenHash = hashToken(sessionRefreshToken);
+    await db.query('INSERT INTO refresh_tokens (user_id, session_id, token_hash, issued_at, expires_at, device_info) VALUES (?, ?, ?, ?, ?, ?)', [user.user_id, sessionId, sessionRefreshTokenHash, now, expiresAt, getDeviceInfo(req)]);
+
+    // If remember, also create a generic persistent refresh token (session_id = NULL)
+    let genericRefreshToken = null;
+    if (remember) {
+      genericRefreshToken = crypto.randomBytes(64).toString('hex');
+      const genericRefreshTokenHash = hashToken(genericRefreshToken);
+      await db.query('INSERT INTO refresh_tokens (user_id, session_id, token_hash, issued_at, expires_at, device_info) VALUES (?, NULL, ?, ?, ?, ?)', [user.user_id, genericRefreshTokenHash, now, expiresAt, getDeviceInfo(req)]);
+    }
+
+    // 5. Set cookies
+    const cookieOpts = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: remember ? REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000 : undefined,
       path: '/api/auth',
-    });
-    // 7. Trả về access token
-    res.json({ success: true, accessToken, user: { userId: user.user_id, username: user.username, role: user.role, balance: Math.floor(user.balance) || 0, elo: user.elo } });
+    };
+
+    // Per-session cookie
+    res.cookie(`refresh_token_${sessionId}`, sessionRefreshToken, cookieOpts);
+    // Generic persistent cookie for remember
+    if (remember && genericRefreshToken) {
+      res.cookie('refresh_token', genericRefreshToken, cookieOpts);
+    }
+
+    // 6. Respond: include sessionId so client can persist it (localStorage for remember, sessionStorage for non-remember)
+    const resp = { success: true, accessToken, user: { userId: user.user_id, username: user.username, role: user.role, balance: Math.floor(user.balance) || 0, elo: user.elo }, sessionId };
+    res.json(resp);
   }
 
   static async refresh(req, res) {
-    const refreshToken = req.cookies?.refresh_token;
+    // Support two modes:
+    // - client provides X-Session-Id header -> look for cookie `refresh_token_<sessionId>` and DB record with that session_id
+    // - no session id -> fallback to generic cookie `refresh_token` (remember login)
+    const sessionId = req.get('x-session-id') || null;
+    const cookieName = sessionId ? `refresh_token_${sessionId}` : 'refresh_token';
+    const refreshToken = req.cookies?.[cookieName];
     if (!refreshToken) {
       return res.status(401).json({ success: false, message: 'Thiếu refresh token' });
     }
+
     const refreshTokenHash = hashToken(refreshToken);
-    // 1. Tìm token trong DB
-    const tokens = await db.query('SELECT * FROM refresh_tokens WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > UTC_TIMESTAMP()', [refreshTokenHash]);
+    // 1. Tìm token trong DB (nếu sessionId có thì match session_id)
+    let tokens;
+    if (sessionId) {
+      tokens = await db.query('SELECT * FROM refresh_tokens WHERE token_hash = ? AND session_id = ? AND revoked_at IS NULL AND expires_at > UTC_TIMESTAMP()', [refreshTokenHash, sessionId]);
+    } else {
+      tokens = await db.query('SELECT * FROM refresh_tokens WHERE token_hash = ? AND session_id IS NULL AND revoked_at IS NULL AND expires_at > UTC_TIMESTAMP()', [refreshTokenHash]);
+    }
     const tokenRow = tokens && tokens[0];
     if (!tokenRow) {
       return res.status(401).json({ success: false, message: 'Refresh token không hợp lệ hoặc đã hết hạn' });
@@ -99,15 +129,17 @@ export default class AuthController {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
     await db.query('UPDATE refresh_tokens SET revoked_at = ? , replaced_by = ? WHERE id = ?', [now, newRefreshTokenHash, tokenRow.id]);
-    await db.query('INSERT INTO refresh_tokens (user_id, token_hash, issued_at, expires_at, device_info) VALUES (?, ?, ?, ?, ?)', [user.user_id, newRefreshTokenHash, now, expiresAt, getDeviceInfo(req)]);
-    // 4. Đặt lại cookie
-    res.cookie('refresh_token', newRefreshToken, {
+    await db.query('INSERT INTO refresh_tokens (user_id, session_id, token_hash, issued_at, expires_at, device_info) VALUES (?, ?, ?, ?, ?, ?)', [user.user_id, tokenRow.session_id, newRefreshTokenHash, now, expiresAt, getDeviceInfo(req)]);
+    // 4. Đặt lại cookie (tên cookie phụ thuộc vào session_id)
+    const newCookieName = tokenRow.session_id ? `refresh_token_${tokenRow.session_id}` : 'refresh_token';
+    const cookieOpts = {
       httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000,
       path: '/api/auth',
-    });
+    };
+    res.cookie(newCookieName, newRefreshToken, cookieOpts);
     // 5. Trả về access token mới
     const accessToken = jwt.sign({ userId: user.user_id, username: user.username, role: user.role }, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
     try {
@@ -119,10 +151,20 @@ export default class AuthController {
   }
 
   static async logout(req, res) {
-    const refreshToken = req.cookies?.refresh_token;
+    // Support per-session cookie names via X-Session-Id header
+    const sessionId = req.get('x-session-id') || null;
+    const cookieName = sessionId ? `refresh_token_${sessionId}` : 'refresh_token';
+    const refreshToken = req.cookies?.[cookieName];
     if (refreshToken) {
       const refreshTokenHash = hashToken(refreshToken);
       await db.query('UPDATE refresh_tokens SET revoked_at = UTC_TIMESTAMP() WHERE token_hash = ?', [refreshTokenHash]);
+      res.clearCookie(cookieName, { path: '/api/auth' });
+    }
+    // Also clear generic cookie if present (useful for remember logins which set two cookies)
+    const genericToken = req.cookies?.['refresh_token'];
+    if (genericToken) {
+      const genericHash = hashToken(genericToken);
+      await db.query('UPDATE refresh_tokens SET revoked_at = UTC_TIMESTAMP() WHERE token_hash = ?', [genericHash]);
       res.clearCookie('refresh_token', { path: '/api/auth' });
     }
     // Nếu route được bảo vệ bởi middleware authenticateJWT thì req.user có thể được dùng
