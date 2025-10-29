@@ -8,10 +8,11 @@ class ReportService {
   /**
    * Tạo report mới với validation
    */
-  static async createReport({ reported_id, type, reason }) {
+  static async createReport({ reporter_id, reported_id, type, reason }) {
     try {
       // Tạo report
       const report = new Report({
+        reporter_id,
         reported_id,
         type,
         reason

@@ -10,18 +10,19 @@ class ReportController {
    */
   static async createReport(req, res) {
     try {
-      const { reported_id, type, reason } = req.body;
+      const { reporter_id, reported_id, type, reason } = req.body;
 
       // Validate input
-      if (!reported_id || !type || !reason) {
+      if (!reporter_id || !reported_id || !type || !reason) {
         return res.status(400).json({
           success: false,
-          message: 'Missing required fields: reported_id, type, and reason are required'
+          message: 'Missing required fields: reporter_id, reported_id, type, and reason are required'
         });
       }
 
       // Sử dụng ReportService để tạo report
       const result = await ReportService.createReport({
+        reporter_id,
         reported_id,
         type,
         reason

@@ -7,12 +7,14 @@ import db from './DatabaseConnection.js';
 class Report {
   constructor({
     report_id = null,
+    reporter_id = null,
     reported_id = null,
     type = null,
     reason = null,
     created_at = null,
   }) {
     this.report_id = report_id;
+    this.reporter_id = reporter_id;
     this.reported_id = reported_id;
     this.type = type;
     this.reason = reason;
@@ -26,6 +28,10 @@ class Report {
 
   // 🔍 VALIDATION METHODS
   validate() {
+    if (!this.reporter_id) {
+      throw new Error('Reporter user ID is required');
+    }
+
     if (!this.reported_id) {
       throw new Error('Reported user ID is required');
     }
@@ -43,6 +49,7 @@ class Report {
   toJSON() {
     return {
       report_id: this.report_id,
+      reporter_id: this.reporter_id,
       reported_id: this.reported_id,
       type: this.type,
       reason: this.reason,
@@ -58,8 +65,8 @@ class Report {
     try {
       // Insert new report
       const result = await db.query(
-        'INSERT INTO Report (reported_id, type, reason) VALUES (?, ?, ?)',
-        [this.reported_id, this.type, this.reason]
+        'INSERT INTO Report (reporter_id, reported_id, type, reason) VALUES (?, ?, ?, ?)',
+        [this.reporter_id, this.reported_id, this.type, this.reason]
       );
       this.report_id = result.insertId;
       return this;

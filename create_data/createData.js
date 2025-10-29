@@ -494,10 +494,13 @@ class DatabaseCreator {
     const sql = `
       CREATE TABLE Report (
         report_id INT AUTO_INCREMENT PRIMARY KEY,
+        reporter_id INT NOT NULL,
         reported_id INT NOT NULL,
         type TEXT,
         reason TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (reporter_id) REFERENCES User(user_id)
+          ON DELETE CASCADE ON UPDATE CASCADE,
         FOREIGN KEY (reported_id) REFERENCES User(user_id)
           ON DELETE CASCADE ON UPDATE CASCADE
       )
@@ -521,7 +524,8 @@ class DatabaseCreator {
       'CREATE INDEX idx_game_table ON Game_History(table_id)',
       'CREATE INDEX idx_ban_user ON Banned_Player(reported_id)',
       'CREATE INDEX idx_appeal_report ON Appeal(report_id)',
-      'CREATE INDEX idx_report_user ON Report(reported_id)'
+      'CREATE INDEX idx_report_reported ON Report(reported_id)',
+      'CREATE INDEX idx_report_reporter ON Report(reporter_id)'
     ];
 
     try {
@@ -731,10 +735,10 @@ class DatabaseCreator {
 
       // Thêm report
       await this.connection.execute(`
-        INSERT INTO Report (reported_id, type, reason)
+        INSERT INTO Report (reporter_id, reported_id, type, reason)
         VALUES 
-        (2, 'Cheating', 'Used bot to play'),
-        (2, 'Toxic Behavior', 'Offensive language and harassment')
+        (1, 2, 'Cheating', 'Used bot to play'),
+        (3, 2, 'Toxic Behavior', 'Offensive language and harassment')
       `);
       console.log('📝 Demo reports inserted!');
 
