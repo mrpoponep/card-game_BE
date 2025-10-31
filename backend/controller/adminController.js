@@ -118,6 +118,80 @@ class AdminController {
       });
     }
   }
+  // Lấy tổng số ván chơi trong khoảng thời gian
+  static async getTotalGames(req, res) {
+    // Lấy 'from' và 'to' từ query parameters
+    const { from, to } = req.query; 
+    // Kiểm tra tính hợp lệ của ngày (ví dụ đơn giản)
+    if (!from || !to || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Vui lòng cung cấp ngày bắt đầu (from) và kết thúc (to) hợp lệ theo định dạng YYYY-MM-DD.' 
+        });
+    }
+    try {
+      // Gọi service với ngày đã nhận
+      const totalGames = await AdminService.getTotalGames(from, to);
+      // Trả về kết quả
+      res.json({
+        success: true,
+        totalGames: totalGames 
+      });
+    }
+    catch (error) {
+      console.error('API Error getTotalGames:', error); // Log lỗi chi tiết hơn
+      res.status(500).json({
+        success: false,
+        message: 'Lỗi server khi lấy tổng số ván chơi.' // Thông báo lỗi chung chung hơn
+      });
+    }
+  }
+  // ➕ THÊM vào class AdminController (cuối file hoặc sau các handler cũ)
+
+  // GET /api/admin/series/coin
+  static async getCoinSeries(req, res) {
+    const { from, to } = req.query;
+    if (!from || !to || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      return res.status(400).json({ success: false, message: 'from/to YYYY-MM-DD' });
+    }
+    try {
+      const series = await AdminService.getCoinSeries(from, to);
+      res.json({ success: true, series });
+    } catch (e) {
+      console.error('API Error getCoinSeries:', e);
+      res.status(500).json({ success: false, message: 'Server error' });
+    }
+  }
+
+  // GET /api/admin/series/active-players
+  static async getActivePlayersSeries(req, res) {
+    const { from, to } = req.query;
+    if (!from || !to || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      return res.status(400).json({ success: false, message: 'from/to YYYY-MM-DD' });
+    }
+    try {
+      const series = await AdminService.getActivePlayersSeries(from, to);
+      res.json({ success: true, series });
+    } catch (e) {
+      console.error('API Error getActivePlayersSeries:', e);
+      res.status(500).json({ success: false, message: 'Server error' });
+    }
+  }
+
+  // GET /api/admin/series/matches
+  static async getMatchesSeries(req, res) {
+    const { from, to } = req.query;
+    if (!from || !to || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      return res.status(400).json({ success: false, message: 'from/to YYYY-MM-DD' });
+    }
+    try {
+      const series = await AdminService.getMatchesSeries(from, to);
+      res.json({ success: true, series });
+    } catch (e) {
+      console.error('API Error getMatchesSeries:', e);
+      res.status(500).json({ success: false, message: 'Server error' });
+    }
+  }
 }
 
 export default AdminController;

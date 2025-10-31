@@ -1,6 +1,7 @@
 import User from '../model/User.js';
 import { getOnlineCount } from '../socket/socketManager.js';
 import Transaction from '../model/Transaction.js';
+import GameHistory from '../model/GameHistory.js';
 
 class AdminService {
   static async getTotalPlayers() {
@@ -45,7 +46,7 @@ class AdminService {
     
     // Get other stats (these don't depend on the date range)
     const totalRegistered = await User.getTotalCount(); 
-    const totalBanned = await User.getBannedCount(); 
+    const totalBanned = await User.getTotalBannedCount(); 
     const currentlyOnline = getOnlineCount(); 
 
     // ✅ RETURN THE UPDATED STRUCTURE
@@ -57,5 +58,28 @@ class AdminService {
       // activeByWin is removed
     };
   }
+
+  // Lấy tổng số ván chơi trong khoảng thời gian
+  static async getTotalGames(startDate, endDate) {
+    const totalGames = await GameHistory.getTotalGames(startDate, endDate);
+    return totalGames;
+  }
+
+  // ➕ THÊM vào cuối class AdminService
+  // Timeseries: coin
+  static async getCoinSeries(startDate, endDate) {
+    return await Transaction.getCoinSeries(startDate, endDate);
+  }
+
+  // Timeseries: người chơi active theo giao dịch
+  static async getActivePlayersSeries(startDate, endDate) {
+    return await Transaction.getActivePlayersSeries(startDate, endDate);
+  }
+
+  // Timeseries: ván chơi
+  static async getMatchesSeries(startDate, endDate) {
+    return await GameHistory.getMatchesSeries(startDate, endDate);
+  }
+
 }
   export default AdminService;

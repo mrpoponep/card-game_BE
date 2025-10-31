@@ -65,6 +65,56 @@ class Transaction {
       throw error;
     }
   }
+ // ➕ THÊM vào cuối class Transaction (giữ nguyên các hàm cũ)
+  /**
+   * Timeseries: coin theo ngày trong khoảng [startDate..endDate]
+   * @returns [{date, totalVolume, transactionCount, averageTransaction}]
+   */
+  static async getCoinSeries(startDate, endDate) {
+    const sql = `
+      SELECT DATE(time) AS date,
+             SUM(ABS(amount)) AS totalVolume,
+             COUNT(*) AS transactionCount,
+             AVG(ABS(amount)) AS averageTransaction
+      FROM Transactions
+      WHERE time BETWEEN CONCAT(?, ' 00:00:00') AND CONCAT(?, ' 23:59:59')
+      GROUP BY DATE(time)
+      ORDER BY DATE(time)
+    `;
+    const rows = await db.query(sql, [startDate, endDate]);
+    return rows.map(r => ({
+      date: r.date,
+      totalVolume: Number(r.totalVolume || 0),
+      transactionCount: Number(r.transactionCount || 0),
+      averageTransaction: Number(r.averageTransaction || 0),
+    }));
+  }
+
+  /**
+   * Timeseries: người chơi active (có giao dịch) theo ngày
+   * @returns [{date, activeByTx}]
+   */
+  static async getActivePlayersSeries(startDate, endDate) {
+    const sql = `
+      SELECT date, COUNT(DISTINCT player_id) AS activeByTx
+      FROM (
+        SELECT DATE(time) AS date, user_id AS player_id
+        FROM Transactions
+        WHERE time BETWEEN CONCAT(?, ' 00:00:00') AND CONCAT(?, ' 23:59:59') AND user_id IS NOT NULL
+        UNION ALL
+        SELECT DATE(time) AS date, source_id AS player_id
+        FROM Transactions
+        WHERE time BETWEEN CONCAT(?, ' 00:00:00') AND CONCAT(?, ' 23:59:59') AND source_id IS NOT NULL
+      ) t
+      GROUP BY date
+      ORDER BY date
+    `;
+    const rows = await db.query(sql, [startDate, endDate, startDate, endDate]);
+    return rows.map(r => ({
+      date: r.date,
+      activeByTx: Number(r.activeByTx || 0),
+    }));
+  }
 }
 
 export default Transaction;
