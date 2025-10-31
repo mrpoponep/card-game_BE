@@ -1,4 +1,5 @@
 // Room service: manages room state, deck utilities and socket event handlers for rooms
+
 // This module keeps its own roomState shared across connections.
 const SUITS = ['S', 'H', 'D', 'C'];
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
@@ -27,17 +28,18 @@ const roomState = {}; // { roomCode: { players: [], settings: {}, gameState: {},
 function sendFullRoomStateUpdate(io, roomCode) {
   if (!roomState[roomCode]) return;
   const room = roomState[roomCode];
-
+  const publicSeats = room.seats.map(seat => {
+    if(!seat) return null;
+    const s = io.of('/').sockets.get(seat.socketId);
+    const u = s?.user || {};
+    return ({
+      user_id: u.user_id || seat.user_id,
+      username: u.username || 'Unknown',
+      balance: u.balance || 0,
+    })
+  })
   const currentStateData = {
-    players: room.players.map(p => {
-      const s = io.of('/').sockets.get(p.socketId);
-      const u = s?.user || {};
-      return ({
-        user_id: u.user_id || p.userId,
-        username: u.username || 'Unknown',
-        balance: u.balance || 0,
-      });
-    }),
+    seats: publicSeats,
     settings: room.settings,
     gameState: {
       status: room.gameState?.status || 'waiting',
@@ -50,9 +52,11 @@ function sendFullRoomStateUpdate(io, roomCode) {
   io.to(roomCode).emit('updateRoomState', currentStateData);
 
   if (room.gameState?.status === 'dealing' || room.gameState?.status === 'playing') {
-    room.players.forEach(player => {
-      const hand = room.gameState.hands?.[player.userId] || [];
-      io.to(player.socketId).emit('updateMyHand', hand);
+    room.seats.forEach(seat => {
+      if(seat){
+        const hand = room.gameState.hands?.[seat.user_id] || [];
+        io.to(seat.socketId).emit('updateMyHand', hand);
+      }
     });
   }
 }
@@ -60,7 +64,8 @@ function sendFullRoomStateUpdate(io, roomCode) {
 function startGameCountdown(io, roomCode) {
   if (!roomState[roomCode] || roomState[roomCode].gameState?.status !== 'waiting') return;
   const room = roomState[roomCode];
-  if (room.players.length < 2) return;
+  const playerCount = room.seats.filter(p => p).length;
+  if (playerCount < 2) return;
 
   room.gameState = { status: 'countdown', countdown: 5 };
   sendFullRoomStateUpdate(io, roomCode);
@@ -95,11 +100,13 @@ function dealNewHand(io, roomCode) {
     pot: 0,
   };
 
-  room.players.forEach(player => {
-    room.gameState.hands[player.userId] = [
-      room.gameState.deck.pop(),
-      room.gameState.deck.pop(),
-    ];
+  room.seats.forEach(seat => {
+    if(seat){
+      room.gameState.hands[seat.user_id] = [
+        room.gameState.deck.pop(),
+        room.gameState.deck.pop(),
+      ];
+    }
   });
 
   room.gameState.status = 'playing';
@@ -123,27 +130,29 @@ function endHand(io, roomCode) {
   room.gameState = { status: 'waiting' };
 
   setTimeout(() => {
-    if (roomState[roomCode] && roomState[roomCode].players.length >= 2) {
-      startGameCountdown(io, roomCode);
+    if (roomState[roomCode]) {
+      const playerCount = roomState[roomCode].seats.filter(p => p).length;
+      if( playerCount >= 2 ){
+        startGameCountdown(io, roomCode);
+      }
     } else if (roomState[roomCode]) {
       sendFullRoomStateUpdate(io, roomCode);
     }
-  }, 2000);
+  }, 5000);
 }
 
 function handleLeaveRoom(io, socket) {
   let roomCodeToUpdate = null;
-  let playerLeftUsername = null;
   let remainingPlayers = 0;
 
   for (const roomCode in roomState) {
     const room = roomState[roomCode];
-    const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
+    const playerIndex = room.seats.findIndex(p => p?.socketId === socket.id);
     if (playerIndex > -1) {
-      playerLeftUsername = socket.user?.username || room.players[playerIndex].userId;
-      room.players.splice(playerIndex, 1);
+      room.seats[playerIndex] = null;       
       roomCodeToUpdate = roomCode;
-      remainingPlayers = room.players.length;
+      const activePlayers = room.seats.filter(p => p);
+      remainingPlayers = activePlayers.length;
 
       if (remainingPlayers === 0) {
         delete roomState[roomCode];
@@ -171,31 +180,47 @@ export function register(io, socket) {
 
     let isSpectator = false;
     if (!roomState[roomCode]) {
+      const maxPlayers = settings?.max_players || 4;
       roomState[roomCode] = {
-        players: [],
-        settings: settings || { max_players: 4, small_blind: 1000 },
+        seats: Array(maxPlayers).fill(null),
+        settings: settings || { max_players: maxPlayers, small_blind: 1000 },
         gameState: { status: 'waiting' },
         timerId: null
       };
-    } else {
-      const currentStatus = roomState[roomCode].gameState?.status;
-      if (currentStatus && currentStatus !== 'waiting' && currentStatus !== 'finished') {
+    } 
+    // else {
+    //   const currentStatus = roomState[roomCode].gameState?.status;
+    //   if (currentStatus && currentStatus !== 'waiting' && currentStatus !== 'finished') {
+    //     isSpectator = true;
+    //     socket.emit('spectatorMode', true);
+    //   }
+    // }
+
+    const room = roomState[roomCode];
+    const existingPlayerIndex = room.seats.findIndex(p => p?.user_id === user.user_id);
+    let mySeatIndex = existingPlayerIndex;
+    if( existingPlayerIndex > -1){
+      room.seats[existingPlayerIndex].socketId = socket.id;
+    }
+    else{
+      const emptySeatIndex = room.seats.indexOf(null);
+      if(emptySeatIndex > -1){
+        room.seats[emptySeatIndex] = {socketId: socket.id, user_id: user.user_id};
+        mySeatIndex = emptySeatIndex;
+      }
+      else{
         isSpectator = true;
-        socket.emit('spectatorMode', true);
       }
     }
 
-    const room = roomState[roomCode];
-    const existingPlayer = room.players.find(p => p.userId === user.user_id);
-    if (!existingPlayer) {
-      room.players.push({ socketId: socket.id, userId: user.user_id });
-    } else {
-      existingPlayer.socketId = socket.id;
+    const currentStatus = room.gameState?.status;
+    if( mySeatIndex === -1 || (currentStatus !== 'waiting' && currentStatus !== 'finished')){
+      isSpectator = true;
+      socket.emit('spectatorMode', true);
     }
-
     sendFullRoomStateUpdate(io, roomCode);
-
-    if (!isSpectator && room.players.length >= 2 && room.gameState?.status === 'waiting') {
+    const playerCount = room.seats.filter(p => p).length;
+    if (!isSpectator && playerCount >= 2 && room.gameState?.status === 'waiting') {
       startGameCountdown(io, roomCode);
     }
   });
