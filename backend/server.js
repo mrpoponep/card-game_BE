@@ -4,6 +4,7 @@ import './config/dotenv-config.js';
 import http from 'http';
 import { Server } from 'socket.io';
 import app from './app.js';
+import { initSocketManager } from './socket/socketManager.js';
 import RewardDistributionService from './service/RewardDistributionService.js';
 import attachSocketServices from './socket/index.js';
 
@@ -18,6 +19,7 @@ const io = new Server(server, {
 
 // Attach socket services (auth middleware + per-service handlers)
 attachSocketServices(io);
+initSocketManager(io);
 
 // Start server
 server.listen(PORT, () => {

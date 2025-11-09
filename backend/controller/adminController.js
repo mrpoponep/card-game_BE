@@ -2,14 +2,11 @@ import AdminService from "../service/adminService.js";
 
 class AdminController {
 /**
-   * 🌟 API Handler: Lấy tổng số người chơi
+   * API Handler: Lấy tổng số người chơi
    */
   static async getTotalPlayers(req, res) {
     try {
-      // Gọi service
       const total = await AdminService.getTotalPlayers();
-
-      // Trả về JSON
       res.json({
         success: true,
         totalPlayers: total
@@ -25,9 +22,7 @@ class AdminController {
   //số người dùng bị banned
   static async getTotalBannedPlayers(req, res) {
     try {
-      // Gọi service
     const totalBanned = await AdminService.getTotalBannedPlayers();
-    // Trả về JSON
     res.json({
         success: true,
         totalBannedPlayers: totalBanned
@@ -43,7 +38,6 @@ class AdminController {
   // lấy số lượng người chơi trực tuyến
   static async getOnlinePlayers(req, res) {
     try {
-      // Gọi service
       const total = await AdminService.getOnlinePlayers();
       
       res.json({
@@ -60,10 +54,8 @@ class AdminController {
   
    // Lấy thống kê Coin
   static async getCoinStats(req, res) {
-    // Lấy 'from' và 'to' từ query parameters
     const { from, to } = req.query; 
 
-    // Kiểm tra tính hợp lệ của ngày (ví dụ đơn giản)
     if (!from || !to || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
         return res.status(400).json({ 
             success: false, 
@@ -72,25 +64,21 @@ class AdminController {
     }
 
     try {
-      // Gọi service với ngày đã nhận
       const stats = await AdminService.getCoinStats(from, to);
-      
-      // Trả về kết quả
-      res.json({
+        res.json({
         success: true,
-        stats: stats // Trả về object { totalVolume: ..., transactionCount: ..., ... }
+        stats: stats 
       });
     } catch (error) {
-      console.error('API Error getCoinStats:', error); // Log lỗi chi tiết hơn
+      console.error('API Error getCoinStats:', error); 
       res.status(500).json({
         success: false,
-        message: 'Lỗi server khi lấy thống kê coin.' // Thông báo lỗi chung chung hơn
+        message: 'Lỗi server khi lấy thống kê coin.'
       });
     }
   }
 
   /**
-   * 🌟 API Handler MỚI 🌟
    * Lấy thống kê Người chơi hoạt động
    * Query params: ?from=YYYY-MM-DD&to=YYYY-MM-DD
    */
@@ -108,7 +96,7 @@ class AdminController {
       const stats = await AdminService.getPlayerStats(from, to);
       res.json({
         success: true,
-        stats: stats // Trả về object { totalRegistered: ..., activeByTx: ..., ... }
+        stats: stats 
       });
     } catch (error) {
       console.error('API Error getPlayerStats:', error);
@@ -120,9 +108,7 @@ class AdminController {
   }
   // Lấy tổng số ván chơi trong khoảng thời gian
   static async getTotalGames(req, res) {
-    // Lấy 'from' và 'to' từ query parameters
     const { from, to } = req.query; 
-    // Kiểm tra tính hợp lệ của ngày (ví dụ đơn giản)
     if (!from || !to || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
         return res.status(400).json({ 
             success: false, 
@@ -130,24 +116,20 @@ class AdminController {
         });
     }
     try {
-      // Gọi service với ngày đã nhận
       const totalGames = await AdminService.getTotalGames(from, to);
-      // Trả về kết quả
       res.json({
         success: true,
         totalGames: totalGames 
       });
     }
     catch (error) {
-      console.error('API Error getTotalGames:', error); // Log lỗi chi tiết hơn
+      console.error('API Error getTotalGames:', error); 
       res.status(500).json({
         success: false,
-        message: 'Lỗi server khi lấy tổng số ván chơi.' // Thông báo lỗi chung chung hơn
+        message: 'Lỗi server khi lấy tổng số ván chơi.' 
       });
     }
   }
-  // ➕ THÊM vào class AdminController (cuối file hoặc sau các handler cũ)
-
   // GET /api/admin/series/coin
   static async getCoinSeries(req, res) {
     const { from, to } = req.query;
@@ -190,6 +172,50 @@ class AdminController {
     } catch (e) {
       console.error('API Error getMatchesSeries:', e);
       res.status(500).json({ success: false, message: 'Server error' });
+    }
+  }
+  // GET /api/admin/series/table-usage
+  static async getActiveTablesSeries(req, res) {
+    const { from, to } = req.query;
+    if (!from || !to || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      return res.status(400).json({ success: false, message: 'from/to phải là YYYY-MM-DD' });
+    }
+    try {
+      const series = await AdminService.getActiveTablesSeries(from, to);
+      res.json({ success: true, series });
+    } catch (e) {
+      console.error('API Error getActiveTablesSeries:', e);
+      res.status(500).json({ success: false, message: 'Lỗi server' });
+    }
+  }
+
+  // GET /api/admin/total-active-tables
+  static async getTotalActiveTables(req, res) {
+    const { from, to } = req.query;
+    if (!from || !to || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      return res.status(400).json({ success: false, message: 'from/to phải là YYYY-MM-DD' });
+    }
+    try {
+      const total = await AdminService.getTotalActiveTables(from, to);
+      res.json({ success: true, totalActiveTables: total });
+    } catch (e) {
+      console.error('API Error getTotalActiveTables:', e);
+      res.status(500).json({ success: false, message: 'Lỗi server' });
+    }
+  }
+  //GET /api/admin/total-active-players?from=YYYY-MM-DD&to=YYYY-MM-DD
+
+  static async getTotalActivePlayers(req, res) {
+    const { from, to } = req.query;
+    if (!from || !to || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      return res.status(400).json({ success: false, message: 'from/to phải là YYYY-MM-DD' });
+    }
+    try {
+      const total = await AdminService.getTotalActivePlayers(from, to);
+      res.json({ success: true, totalActivePlayers: total });
+    } catch (e) {
+      console.error('API Error getTotalActivePlayers:', e);
+      res.status(500).json({ success: false, message: 'Lỗi server' });
     }
   }
 }

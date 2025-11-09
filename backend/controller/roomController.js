@@ -1,3 +1,4 @@
+// controller/roomController.js
 import { createTable } from "../model/TableConfig.js";
 import User from "../model/User.js";
 import db from "../model/DatabaseConnection.js";
@@ -10,8 +11,8 @@ export const createGameRoom = async (req, res) => {
       max_players,
     } = req.body;
 
-    // Lấy user_id từ access token nếu có
-    const user_id = req.user?.user_id || req.user?.userId || req.body?.user_id;
+    const user_id = req.user?.user_id || req.user?.userId;
+    const role = req.user?.role;
 
     if (!user_id || !small_blind || !max_players) {
       return res.status(400).json({ message: "Thiếu thông tin tạo phòng." });
@@ -21,7 +22,11 @@ export const createGameRoom = async (req, res) => {
     if (!user) return res.status(404).json({ message: "Không tìm thấy người dùng." });
 
     const min_buy_in = small_blind * 10;
-    if (user.balance < min_buy_in) {
+
+    console.log('User role from token:', role);
+
+    const isAdmin = role?.toLowerCase() === 'admin';
+    if (!isAdmin && user.balance < min_buy_in) {
       return res.status(403).json({ message: `Bạn không đủ tiền. Cần ít nhất ${min_buy_in.toLocaleString()} (10x mức cược).` });
     }
 
@@ -59,6 +64,7 @@ export const createGameRoom = async (req, res) => {
 export const findRoom = async (req, res) => {
   const { code } = req.params;
   const userId = req.user?.user_id || req.user?.userId || req.query?.userId;
+  const role = req.user?.role;
 
   try {
     const rows = await db.query("SELECT * FROM table_info WHERE room_code = ?", [code]);
@@ -70,7 +76,10 @@ export const findRoom = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'Không tìm thấy người dùng.' });
 
-    if (user.balance < room.min_buy_in) {
+    console.log('User role from token:', role);
+
+    const isAdmin = role?.toLowerCase() === 'admin';
+    if (!isAdmin && user.balance < room.min_buy_in) {
       return res.status(403).json({ message: `Bạn không đủ tiền. Phòng này yêu cầu ít nhất ${room.min_buy_in.toLocaleString()}.` });
     }
 

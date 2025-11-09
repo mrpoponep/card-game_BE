@@ -24,24 +24,14 @@ class AdminService {
   
   // Lấy thống kê Coin theo khoảng thời gian
   static async getCoinStats(startDate, endDate) {
-    // Gọi hàm từ model Transaction
     const stats = await Transaction.getCoinStats(startDate, endDate); 
     return stats;
   }
 
   /**
-   * Lấy thống kê Người chơi
    * - activePlayersInPeriod: Số người chơi duy nhất có giao dịch trong khoảng thời gian
-   * - Các chỉ số khác là tổng thể hoặc hiện tại
    */
   static async getPlayerStats(startDate, endDate) {
-    // ❌ REMOVE THE CALL TO GameHistory
-    // const [activeByTx, activeByWin] = await Promise.all([
-    //   Transaction.getActivePlayersByTx(startDate, endDate),
-    //   GameHistory.getWinningPlayersCount(startDate, endDate)
-    // ]);
-
-    // ✅ ONLY CALL Transaction model for period activity
     const activePlayersInPeriod = await Transaction.getActivePlayersByTx(startDate, endDate);
     
     // Get other stats (these don't depend on the date range)
@@ -51,12 +41,16 @@ class AdminService {
 
     // ✅ RETURN THE UPDATED STRUCTURE
     return {
-      totalRegistered: totalRegistered,       // Tổng số đăng ký (không bị ban)
-      totalBanned: totalBanned,           // Tổng số bị ban
-      currentlyOnline: currentlyOnline,     // Đang online ngay lúc này
-      activePlayersInPeriod: activePlayersInPeriod // Hoạt động (có giao dịch) trong kỳ
+      totalRegistered: totalRegistered,    
+      totalBanned: totalBanned,      
+      currentlyOnline: currentlyOnline,   
+      activePlayersInPeriod: activePlayersInPeriod 
       // activeByWin is removed
     };
+  }
+  // Tổng người chơi active trong kỳ (đếm DISTINCT theo giao dịch)
+  static async getTotalActivePlayers(startDate, endDate) {
+    return await Transaction.getActivePlayersByTx(startDate, endDate);
   }
 
   // Lấy tổng số ván chơi trong khoảng thời gian
@@ -65,7 +59,6 @@ class AdminService {
     return totalGames;
   }
 
-  // ➕ THÊM vào cuối class AdminService
   // Timeseries: coin
   static async getCoinSeries(startDate, endDate) {
     return await Transaction.getCoinSeries(startDate, endDate);
@@ -80,6 +73,15 @@ class AdminService {
   static async getMatchesSeries(startDate, endDate) {
     return await GameHistory.getMatchesSeries(startDate, endDate);
   }
+  /**
+ * Timeseries: Số bàn hoạt động (có ván chơi) theo ngày
+ */
+  static async getActiveTablesSeries(startDate, endDate) {
+    return await GameHistory.getActiveTablesSeries(startDate, endDate);
+  }
 
+  static async getTotalActiveTables(startDate, endDate) {
+    return await GameHistory.getTotalActiveTables(startDate, endDate);
+  }
 }
   export default AdminService;

@@ -29,7 +29,6 @@ class GameHistory {
       throw error;
     }
   }
-  // ➕ THÊM vào cuối class GameHistory (giữ nguyên hàm getTotalGames)
   /**
    * Timeseries: số ván chơi theo ngày
    * @returns [{date, totalGames}]
@@ -47,6 +46,49 @@ class GameHistory {
       date: r.date,
       totalGames: Number(r.totalGames || 0),
     }));
+  }
+  static async getActiveTablesSeries(startDate, endDate) {
+    const sql = `
+      SELECT 
+        DATE(gh.time) AS date,
+        COUNT(DISTINCT gh.table_id) AS activeTables
+      FROM Game_History gh
+      WHERE gh.time BETWEEN CONCAT(?, ' 00:00:00') AND CONCAT(?, ' 23:59:59')
+      GROUP BY DATE(gh.time)
+      ORDER BY DATE(gh.time)
+    `;
+
+    try {
+      const rows = await db.query(sql, [startDate, endDate]);
+      return rows.map(r => ({
+        date: r.date,
+        activeTables: Number(r.activeTables || 0)
+      }));
+    } catch (error) {
+      console.error('Lỗi getActiveTablesSeries:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Tổng số bàn unique được dùng trong khoảng thời gian
+   */
+  static async getTotalActiveTables(startDate, endDate) {
+    const sql = `
+      SELECT COUNT(DISTINCT table_id) AS totalActiveTables
+      FROM Game_History
+      WHERE time BETWEEN ? AND ?
+    `;
+
+    try {
+      const start = `${startDate} 00:00:00`;
+      const end = `${endDate} 23:59:59`;
+      const rows = await db.query(sql, [start, end]);
+      return parseInt(rows[0]?.totalActiveTables) || 0;
+    } catch (error) {
+      console.error('Lỗi getTotalActiveTables:', error);
+      throw error;
+    }
   }
 }
 

@@ -19,7 +19,7 @@ import eloRewardRoute from './route/EloRewardRoute.js';
 import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
 import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
 import admin from './route/adminRoutes.js';
-
+import listRoomsRoute from './route/listRoomsRoute.js';
 
 const app = express();
 
@@ -194,7 +194,7 @@ app.use('/api/elo-reward', eloRewardRoute);
 app.use('/api/weekly-reward', weeklyRewardRoute);
 app.use('/api/monthly-reward', monthlyRewardRoute);
 app.use('/api/admin', admin);
-
+app.use('/api/listRoom', listRoomsRoute);
 // (room routes consolidated in /api/room via roomRoute)
 
 export default app;
