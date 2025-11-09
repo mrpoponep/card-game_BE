@@ -1,33 +1,34 @@
-// services/RankingService.js
+// service/RankingService.js
 import User from '../model/User.js';
 
 // 🌐 PUBLIC SERVICE CLASS (chỉ export những gì cần thiết)
 class RankingService {
-  static async getAllRankings(page = 0, limit = 0) {
-    // Logic pagination
-    const listRankings = await User.listRankings();
-    const totalItems = listRankings.length > 100 ? 100 : listRankings.length;
-
-    let rankings = listRankings.map((player, index) => ({
-        rank: index + 1,
+  static async getAllRankings() {
+    // Always return top 100 without pagination
+    const listRankings = await User.listRankings(100);
+    
+    // Olympic ranking: cùng ELO thì cùng rank
+    let currentRank = 1;
+    let previousElo = null;
+    
+    const rankings = listRankings.map((player, index) => {
+      // Nếu ELO khác với người trước đó, cập nhật rank
+      if (previousElo !== null && player.elo < previousElo) {
+        currentRank = index + 1;
+      }
+      previousElo = player.elo;
+      
+      return {
+        rank: currentRank,
         userId: player.user_id,
         username: player.username,
         elo: player.elo,
-      }));
-    
-    // Apply pagination if limit > 0
-    if (limit > 0) {
-      const startIndex = page * limit;
-      const endIndex = startIndex + limit > totalItems ? totalItems : startIndex + limit;
-      rankings = rankings.slice(startIndex, endIndex);
-    }
-    else {
-      rankings = rankings.slice(0, totalItems);
-    }
+      };
+    });
     
     return {
       rankings,
-      totalItems
+      totalItems: rankings.length
     };
   }
 

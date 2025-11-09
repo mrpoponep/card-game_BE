@@ -23,6 +23,13 @@ class DatabaseConnection {
         console.log(`🗄️ MySQL Query: ${sql}`);
         console.log('📋 Params:', params);
       }
+      const ddlCommands = ['CREATE', 'DROP', 'ALTER', 'USE'];
+      const isDDL = ddlCommands.some(cmd => sql.trim().toUpperCase().startsWith(cmd));
+      if (isDDL) {
+        const [rows, fields] = await this.pool.query(sql);
+        return rows;
+      }
+
       const [rows, fields] = await this.pool.execute(sql, params);
       
       // Handle different query types
@@ -44,7 +51,6 @@ class DatabaseConnection {
           changedRows: rows.changedRows || 0
         };
       }
-      
       return rows;
       
     } catch (error) {
@@ -54,7 +60,7 @@ class DatabaseConnection {
   }
 
   // 🔧 CONNECTION METHODS
-  async connect() {
+  async connect(adminMode = false) {
     try {
       if (this.isConnected) {
         if (process.env.NODE_ENV !== 'production') {
@@ -73,7 +79,7 @@ class DatabaseConnection {
         port: currentConfig.port,
         user: currentConfig.user,
         password: currentConfig.password,
-        database: currentConfig.database,
+        database: adminMode ? undefined : currentConfig.database,
         connectionLimit: currentConfig.connectionLimit,
         charset: currentConfig.charset,
         timezone: currentConfig.timezone,
