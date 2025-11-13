@@ -4,7 +4,7 @@ import './config/dotenv-config.js';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import fs from 'fs'; 
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 import { authenticateJWT } from './middleware/auth.js';
@@ -18,6 +18,8 @@ import dailyRewardRoute from './route/DailyRewardRoute.js';
 import eloRewardRoute from './route/EloRewardRoute.js';
 import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
 import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
+import paymentRoutes from "./route/paymentRoutes.js";
+
 
 
 const app = express();
@@ -51,9 +53,9 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // Fallback cho avatar mặc định nếu file không tồn tại
 app.get('/avatar/*', (req, res) => {
   const requestedPath = req.params[0]; // Lấy phần sau /avatar/ (không có đuôi)
-  
+
   const avatarDir = path.join(__dirname, '..', 'public', 'avatar');
-  
+
   // Lấy danh sách files trong thư mục avatar
   let files;
   try {
@@ -62,10 +64,10 @@ app.get('/avatar/*', (req, res) => {
     console.error('Error reading avatar directory:', error);
     return res.status(500).json({ success: false, message: 'Server error' });
   }
-  
+
   // Tìm file có tên bắt đầu bằng requestedPath + '.'
   const matchingFile = files.find(file => file.startsWith(requestedPath + '.'));
-  
+
   if (matchingFile) {
     const fullPath = path.join(avatarDir, matchingFile);
     return res.sendFile(fullPath);
@@ -177,7 +179,9 @@ app.use((req, res, next) => {
     '/api/auth/refresh',
     '/api/auth/send-reset-otp',
     '/api/auth/verify-otp-reset-password',
-    '/avatar' 
+    '/avatar',
+    '/api/payment',
+
   ];
   // Nếu path bắt đầu bằng 1 trong các openAuthPaths thì bỏ qua xác thực
   if (openAuthPaths.some(path => req.path === path || req.path.startsWith(path + '/'))) {
@@ -192,6 +196,8 @@ app.use('/api/daily-reward', dailyRewardRoute);
 app.use('/api/elo-reward', eloRewardRoute);
 app.use('/api/weekly-reward', weeklyRewardRoute);
 app.use('/api/monthly-reward', monthlyRewardRoute);
+app.use('/api/payment', paymentRoutes);
+
 
 // (room routes consolidated in /api/room via roomRoute)
 
