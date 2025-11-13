@@ -1,5 +1,6 @@
 import querystring from 'qs';
 import crypto from 'crypto';
+import localtunnel from 'localtunnel';  // Thêm import này cho Localtunnel
 
 /**
  * @description Sắp xếp các key trong Object theo thứ tự alphabet.
@@ -29,7 +30,22 @@ export const createPaymentService = async (req) => {
     const tmnCode = process.env.VNP_TMN_CODE;
     const secretKey = process.env.VNP_HASH_SECRET;
     const vnpUrl = process.env.VNP_URL;
-    const returnUrl = process.env.VNP_RETURN_URL;
+
+    // SỬA: Tạo returnUrl động với Localtunnel (public URL)
+    let returnUrl = process.env.VNP_RETURN_URL;  // Fallback localhost nếu tunnel fail
+    try {
+        const tunnel = await localtunnel({ port: 3000 });  // Tạo tunnel đến port 3000
+        const publicUrl = tunnel.url;  // Ví dụ: https://abc123.loca.lt
+        returnUrl = `${publicUrl}/api/payment/vnpay_return`;
+        console.log("=== Tunnel Debug ===");
+        console.log("Public Return URL:", returnUrl);
+        console.log("Tunnel URL (full):", publicUrl);
+        // Optional: Đóng tunnel khi process exit (tránh leak)
+        // process.on('exit', () => { tunnel.close(); });
+    } catch (error) {
+        console.error("Localtunnel error:", error.message);
+        console.log("Fallback to localhost Return URL:", returnUrl);
+    }
 
     const date = new Date();
     const createDate = date
@@ -56,7 +72,7 @@ export const createPaymentService = async (req) => {
         vnp_OrderInfo: orderInfo,
         vnp_OrderType: orderType,
         vnp_Amount: amount * 100,
-        vnp_ReturnUrl: returnUrl,
+        vnp_ReturnUrl: returnUrl,  // Sử dụng returnUrl động
         vnp_IpAddr: normalizedIp,
         vnp_CreateDate: createDate,
     };
