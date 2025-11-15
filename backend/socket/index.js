@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { isAccessTokenValidForUser } from '../authTokenStore.js';
 import User from '../model/User.js';
 import * as roomService from './roomService.js';
+import * as chatService from './chatService.js';
 
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'youraccesstokensecret';
 
@@ -58,7 +59,7 @@ export default function attachSocketServices(io) {
 
     // Register per-service handlers (keep services small and focused)
     roomService.register(io, socket);
-
+    chatService.register(io, socket);
     // Future services: chatService.register(io, socket); statsService.register(...)
   });
 }
