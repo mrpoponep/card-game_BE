@@ -39,13 +39,22 @@ app.use(express.json());               // Cho JSON data
 app.use(express.urlencoded({ extended: true })); // Cho form-urlencoded
 app.use(cookieParser());
 
-// Rate limit: 100 requests/15 phút mỗi IP
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { success: false, message: 'Bạn gửi quá nhiều yêu cầu, vui lòng thử lại sau.' }
-});
-app.use('/api', apiLimiter);
+// Rate limit: Chỉ apply trong production, tắt trong development
+const isDev = process.env.NODE_ENV === 'development';
+
+if (!isDev) {
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    message: { success: false, message: 'Bạn gửi quá nhiều yêu cầu, vui lòng thử lại sau.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use('/api', apiLimiter);
+  console.log('✅ Rate limiting enabled (production mode)');
+} else {
+  console.log('⚠️  Rate limiting disabled (development mode)');
+}
 
 // Thư mục các file public
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -179,9 +188,10 @@ app.use((req, res, next) => {
     '/api/auth/refresh',
     '/api/auth/send-reset-otp',
     '/api/auth/verify-otp-reset-password',
+    '/api/auth/register',  // Cho phép đăng ký
     '/avatar',
-    '/api/payment',
-
+    '/api/payment/vnpay_return',  // Chỉ mở callback return từ VNPay (không có auth header)
+    '/api/payment/vnpay_ipn',     // Chỉ mở IPN webhook từ VNPay (không có auth header)
   ];
   // Nếu path bắt đầu bằng 1 trong các openAuthPaths thì bỏ qua xác thực
   if (openAuthPaths.some(path => req.path === path || req.path.startsWith(path + '/'))) {

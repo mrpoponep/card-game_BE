@@ -58,7 +58,7 @@ class User {
     // Rank = số người có ELO STRICTLY GREATER + 1
     // Ví dụ: 2 người ELO 2500 (rank 1), 1 người ELO 2000 (rank 3)
     const result = await db.query(
-      "SELECT COUNT(*) + 1 AS 'rank' FROM user WHERE elo > ? AND banned = false", 
+      "SELECT COUNT(*) + 1 AS 'rank' FROM user WHERE elo > ? AND banned = false",
       [this.elo]
     );
     return result[0].rank;
@@ -101,7 +101,7 @@ class User {
     }
     return null;
   }
-  
+
   // (Các hàm khác giữ nguyên cấu trúc nhưng đảm bảo chúng hoạt động với constructor mới)
   static async listRankings(limit = 100) {
     const dbRows = await db.query(
@@ -139,10 +139,41 @@ class User {
       user.elo,
       user.balance,
       user.banned,
-      user.avatar_url, 
+      user.avatar_url,
       user.user_id
     ]);
     return user;
+  }
+
+  // 💰 Payment methods
+  async updateBalance(amount) {
+    if (typeof amount !== 'number' || isNaN(amount)) {
+      throw new Error('Invalid amount for balance update');
+    }
+
+    // Atomic update để tránh race condition
+    const query = `
+      UPDATE user 
+      SET balance = balance + ? 
+      WHERE user_id = ?
+    `;
+    await db.query(query, [amount, this.user_id]);
+
+    // Refresh balance từ database
+    const updated = await User.findById(this.user_id);
+    if (updated) {
+      this.balance = updated.balance;
+    }
+
+    return this;
+  }
+
+  static async updateBalanceById(userId, amount) {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+    return await user.updateBalance(amount);
   }
 }
 

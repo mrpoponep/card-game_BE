@@ -52,7 +52,7 @@ function hmacSha512(secret, data) {
 
 /** ---------------- Main functions ---------------- **/
 
-export async function createPaymentService(req) {
+export async function createPaymentService(req, userId = null) {
     const tmnCode = (process.env.VNP_TMN_CODE || '').trim();
     const secretKey = (process.env.VNP_HASH_SECRET || '').trim();
     const vnpUrl = (process.env.VNP_URL || 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html').trim();
@@ -64,10 +64,12 @@ export async function createPaymentService(req) {
     const createDate = formatVNDate(now);
     const expireDate = formatExpireDate(now, 15);
 
-    const orderId = Math.floor(Date.now() / 1000).toString();
+    // Include userId in txnRef for tracking
+    const timestamp = Math.floor(Date.now() / 1000);
+    const orderId = userId ? `${userId}_${timestamp}` : timestamp.toString();
     const amount = Number(req.body.amount || 0);
     const bankCode = (req.body.bankCode || '').trim();
-    const orderInfo = (req.body.orderDescription || `Thanh toan ${orderId}`).trim();
+    const orderInfo = (req.body.orderDescription || `Nap tien ${orderId}`).trim();
     const orderType = (req.body.orderType || 'other').trim();
     const locale = (req.body.language || 'vn').trim();
 
@@ -164,5 +166,170 @@ export async function verifyIpnService(req) {
     }
     return { RspCode: '97', Message: 'Fail checksum', expectedHash, receivedHash, signData };
 }
+
+export const vnpayReturn = async (req, res) => {
+    try {
+        const result = await verifyReturnService(req);
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+        if (!result.success) {
+            console.error('VNPay signature verification failed:', result);
+            return res.redirect(`${frontendUrl}/payment-result?status=failed&message=Invalid+signature`);
+        }
+
+        const {
+            vnp_Amount,
+            vnp_BankCode,
+            vnp_CardType,
+            vnp_OrderInfo,
+            vnp_PayDate,
+            vnp_ResponseCode,
+            vnp_TxnRef,
+            vnp_TransactionNo
+        } = result.data;
+
+        const amount = Number(vnp_Amount) / 100;
+        const isSuccess = vnp_ResponseCode === '00';
+
+        // 🔥 Tìm transaction PENDING
+        const pendingTx = await Transaction.findByTxnRef(vnp_TxnRef);
+
+        if (pendingTx) {
+            const parsed = pendingTx.parseReason();
+
+            // 🔥 Tạo transaction MỚI thay vì UPDATE
+            const newReason = Transaction.buildReason({
+                txnRef: vnp_TxnRef,
+                orderInfo: parsed.orderInfo || vnp_OrderInfo,
+                status: isSuccess ? 'SUCCESS' : 'FAILED',
+                responseCode: vnp_ResponseCode,
+                transactionNo: vnp_TransactionNo
+            });
+
+            await Transaction.insertIntoDatabase(new Transaction({
+                user_id: pendingTx.user_id,
+                source_id: null,
+                amount: isSuccess ? amount : -Math.abs(pendingTx.amount), // FAILED = âm để mark
+                reason: newReason,
+                source: 'vnpay',
+                time: new Date()
+            }));
+
+            // 🔥 Cập nhật balance CHỈ KHI success
+            if (isSuccess) {
+                try {
+                    await User.updateBalanceById(pendingTx.user_id, amount);
+                    console.log(`✅ Balance updated for user ${pendingTx.user_id}: +${amount} VND`);
+                } catch (balanceError) {
+                    console.error('Failed to update balance:', balanceError);
+                }
+            }
+        } else {
+            console.warn(`Transaction not found for txnRef: ${vnp_TxnRef}`);
+        }
+
+        const queryParams = new URLSearchParams({
+            status: isSuccess ? 'success' : 'failed',
+            amount: amount.toString(),
+            txnRef: vnp_TxnRef,
+            responseCode: vnp_ResponseCode,
+            message: isSuccess ? 'Payment successful' : 'Payment failed'
+        });
+
+        return res.redirect(`${frontendUrl}/payment-result?${queryParams.toString()}`);
+    } catch (err) {
+        console.error('VNPay return error:', err);
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        return res.redirect(`${frontendUrl}/payment-result?status=error&message=${encodeURIComponent(err.message)}`);
+    }
+};
+
+export const vnpayIpn = async (req, res) => {
+    try {
+        const result = await verifyIpnService(req);
+
+        if (result.RspCode !== '00') {
+            console.error('VNPay IPN signature verification failed:', result);
+            return res.status(200).json(result);
+        }
+
+        const {
+            vnp_Amount,
+            vnp_ResponseCode,
+            vnp_TxnRef,
+            vnp_TransactionNo,
+            vnp_OrderInfo
+        } = req.query;
+
+        const amount = Number(vnp_Amount) / 100;
+        const isSuccess = vnp_ResponseCode === '00';
+
+        // 🔥 Tìm transaction PENDING
+        const pendingTx = await Transaction.findByTxnRef(vnp_TxnRef);
+
+        if (!pendingTx) {
+            console.warn(`IPN: Transaction not found for txnRef: ${vnp_TxnRef}`);
+            return res.status(200).json({
+                RspCode: '01',
+                Message: 'Order not found'
+            });
+        }
+
+        const parsed = pendingTx.parseReason();
+
+        // 🔥 Kiểm tra xem đã xử lý chưa (tìm transaction SUCCESS/FAILED)
+        const processedTx = await Transaction.findByTxnRefAndStatus(vnp_TxnRef, ['SUCCESS', 'FAILED']);
+        if (processedTx) {
+            console.log(`IPN: Transaction ${vnp_TxnRef} already processed`);
+            return res.status(200).json({
+                RspCode: '02',
+                Message: 'Order already confirmed'
+            });
+        }
+
+        // 🔥 Tạo transaction MỚI
+        const newReason = Transaction.buildReason({
+            txnRef: vnp_TxnRef,
+            orderInfo: parsed.orderInfo || vnp_OrderInfo,
+            status: isSuccess ? 'SUCCESS' : 'FAILED',
+            responseCode: vnp_ResponseCode,
+            transactionNo: vnp_TransactionNo
+        });
+
+        await Transaction.insertIntoDatabase(new Transaction({
+            user_id: pendingTx.user_id,
+            source_id: null,
+            amount: isSuccess ? amount : -Math.abs(pendingTx.amount),
+            reason: newReason,
+            source: 'vnpay',
+            time: new Date()
+        }));
+
+        // 🔥 Cập nhật balance CHỈ KHI success
+        if (isSuccess) {
+            try {
+                await User.updateBalanceById(pendingTx.user_id, amount);
+                console.log(`✅ IPN: Balance updated for user ${pendingTx.user_id}: +${amount} VND`);
+            } catch (balanceError) {
+                console.error('IPN: Failed to update balance:', balanceError);
+                return res.status(200).json({
+                    RspCode: '99',
+                    Message: 'Failed to update balance'
+                });
+            }
+        }
+
+        return res.status(200).json({
+            RspCode: '00',
+            Message: 'Success'
+        });
+    } catch (err) {
+        console.error('VNPay IPN error:', err);
+        return res.status(200).json({
+            RspCode: '99',
+            Message: err.message
+        });
+    }
+};
 
 export const _debug = { sortObject, formatVNDate, formatExpireDate, getClientIp, buildSignData, hmacSha512 };
