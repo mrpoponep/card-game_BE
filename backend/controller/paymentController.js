@@ -2,10 +2,23 @@ import { createPaymentService, verifyReturnService, verifyIpnService } from '../
 
 export const createPaymentUrl = async (req, res) => {
     try {
-        const paymentUrl = await createPaymentService(req);
-        return res.status(200).json({ success: true, paymentUrl });
-    } catch (err) {
-        return res.status(500).json({ success: false, message: err.message });
+        const result = await createPaymentService(req);
+
+        // Hỗ trợ cả 2 kiểu trả về
+        const paymentUrl = typeof result === 'string' ? result : result?.paymentUrl;
+
+        console.log('Service result:', paymentUrl);
+
+        return res.json({
+            success: true,
+            paymentUrl
+        });
+    } catch (e) {
+        console.error('Create payment error:', e);
+        return res.status(400).json({
+            success: false,
+            message: e.message || 'Tạo URL thất bại'
+        });
     }
 };
 

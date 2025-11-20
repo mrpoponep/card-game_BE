@@ -1,181 +1,168 @@
-import querystring from 'qs';
+// vnpay.service.js
+import qs from 'qs';
 import crypto from 'crypto';
-import localtunnel from 'localtunnel';  // Thêm import này cho Localtunnel
 
-/**
- * @description Sắp xếp các key trong Object theo thứ tự alphabet.
- * @param {object} obj - Đối tượng cần sắp xếp.
- * @returns {object} Đối tượng đã sắp xếp.
- */
-const sortObject = (obj) => {
+/** ---------------- Helpers ---------------- **/
+
+function sortObject(obj) {
     const sorted = {};
-    const keys = Object.keys(obj).sort();
-    keys.forEach((key) => (sorted[key] = obj[key]));
+    Object.keys(obj).sort().forEach(k => { sorted[k] = obj[k]; });
     return sorted;
-};
+}
 
-// 📦 1. Tạo URL thanh toán
-export const createPaymentService = async (req) => {
-    // Lấy IP, chuẩn hóa IPv6 về IPv4 (127.0.0.1)
-    let ipAddr =
-        req.headers['x-forwarded-for'] ||
-        req.connection.remoteAddress ||
-        req.socket.remoteAddress;
+function formatVNDate(date = new Date()) {
+    const tzOffsetMin = 7 * 60;
+    const localOffset = date.getTimezoneOffset();
+    const d = new Date(date.getTime() + (tzOffsetMin + localOffset) * 60000);
+    const pad = n => String(n).padStart(2, '0');
+    return (
+        d.getFullYear().toString() +
+        pad(d.getMonth() + 1) +
+        pad(d.getDate()) +
+        pad(d.getHours()) +
+        pad(d.getMinutes()) +
+        pad(d.getSeconds())
+    );
+}
 
-    if (ipAddr && (ipAddr === '::1' || ipAddr.includes('::ffff:'))) {
-        ipAddr = '127.0.0.1';
-    }
-    const normalizedIp = ipAddr || "127.0.0.1";
+function formatExpireDate(date = new Date(), minutes = 15) {
+    return formatVNDate(new Date(date.getTime() + minutes * 60 * 1000));
+}
 
-    const tmnCode = process.env.VNP_TMN_CODE;
-    const secretKey = process.env.VNP_HASH_SECRET;
-    const vnpUrl = process.env.VNP_URL;
+function getClientIp(req) {
+    let ipAddr = req.headers['x-forwarded-for'] ||
+        req.connection?.remoteAddress ||
+        req.socket?.remoteAddress ||
+        (req.connection && req.connection.socket ? req.connection.socket.remoteAddress : null);
+    if (!ipAddr) return '127.0.0.1';
+    if (ipAddr === '::1' || ipAddr.startsWith('::ffff:')) return '127.0.0.1';
+    if (ipAddr.includes(',')) ipAddr = ipAddr.split(',')[0].trim();
+    return ipAddr;
+}
 
-    // SỬA: Tạo returnUrl động với Localtunnel (public URL)
-    let returnUrl = process.env.VNP_RETURN_URL;  // Fallback localhost nếu tunnel fail
-    try {
-        const tunnel = await localtunnel({ port: 3000 });  // Tạo tunnel đến port 3000
-        const publicUrl = tunnel.url;  // Ví dụ: https://abc123.loca.lt
-        returnUrl = `${publicUrl}/api/payment/vnpay_return`;
-        console.log("=== Tunnel Debug ===");
-        console.log("Public Return URL:", returnUrl);
-        console.log("Tunnel URL (full):", publicUrl);
-        // Optional: Đóng tunnel khi process exit (tránh leak)
-        // process.on('exit', () => { tunnel.close(); });
-    } catch (error) {
-        console.error("Localtunnel error:", error.message);
-        console.log("Fallback to localhost Return URL:", returnUrl);
-    }
+function buildSignData(sortedParams) {
+    return Object.keys(sortedParams)
+        .map(k => `${k}=${encodeURIComponent(sortedParams[k]).replace(/%20/g, '+')}`)
+        .join('&');
+}
 
-    const date = new Date();
-    const createDate = date
-        .toISOString()
-        .replace(/[-T:\.Z]/g, '')
-        .slice(0, 14);
+function hmacSha512(secret, data) {
+    return crypto.createHmac('sha512', secret).update(Buffer.from(data, 'utf-8')).digest('hex');
+}
 
-    // Sử dụng timestamp + 3 số ngẫu nhiên cuối để đảm bảo tính duy nhất hơn
-    const orderId = (Date.now() + Math.random().toString().slice(-3)).slice(-10);
+/** ---------------- Main functions ---------------- **/
 
-    const amount = req.body.amount;
-    const bankCode = req.body.bankCode || '';
-    const orderInfo = req.body.orderDescription || 'Thanh toán đơn hàng';
-    const orderType = req.body.orderType || 'other';
-    const locale = req.body.language || 'vn';
+export async function createPaymentService(req) {
+    const tmnCode = (process.env.VNP_TMN_CODE || '').trim();
+    const secretKey = (process.env.VNP_HASH_SECRET || '').trim();
+    const vnpUrl = (process.env.VNP_URL || 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html').trim();
+    const returnUrl = (process.env.VNP_RETURN_URL || '').trim();
+
+    if (!tmnCode || !secretKey || !returnUrl) throw new Error('Missing VNPay env');
+
+    const now = new Date();
+    const createDate = formatVNDate(now);
+    const expireDate = formatExpireDate(now, 15);
+
+    const orderId = Math.floor(Date.now() / 1000).toString();
+    const amount = Number(req.body.amount || 0);
+    const bankCode = (req.body.bankCode || '').trim();
+    const orderInfo = (req.body.orderDescription || `Thanh toan ${orderId}`).trim();
+    const orderType = (req.body.orderType || 'other').trim();
+    const locale = (req.body.language || 'vn').trim();
 
     let vnp_Params = {
         vnp_Version: '2.1.0',
         vnp_Command: 'pay',
         vnp_TmnCode: tmnCode,
-        vnp_Locale: locale,
+        vnp_Amount: Math.round(amount * 100),
         vnp_CurrCode: 'VND',
         vnp_TxnRef: orderId,
         vnp_OrderInfo: orderInfo,
         vnp_OrderType: orderType,
-        vnp_Amount: amount * 100,
-        vnp_ReturnUrl: returnUrl,  // Sử dụng returnUrl động
-        vnp_IpAddr: normalizedIp,
+        vnp_Locale: locale,
+        vnp_ReturnUrl: returnUrl,
+        vnp_IpAddr: getClientIp(req),
         vnp_CreateDate: createDate,
+        vnp_ExpireDate: expireDate
     };
+    if (bankCode) vnp_Params.vnp_BankCode = bankCode;
 
-    if (bankCode) vnp_Params['vnp_BankCode'] = bankCode;
+    // Loại bỏ field rỗng
+    Object.keys(vnp_Params).forEach(k => {
+        if (vnp_Params[k] === '' || vnp_Params[k] === null || vnp_Params[k] === undefined) {
+            delete vnp_Params[k];
+        }
+    });
 
-    // Bước 1: Sắp xếp các tham số
-    vnp_Params = sortObject(vnp_Params);
+    console.log('--- VNPAY Params BEFORE Sort ---');
+    console.log(vnp_Params);
 
-    // FIX LỖI CHỮ KÝ: Sử dụng querystring.stringify để mã hóa (encode) TẤT CẢ các giá trị
-    // (ví dụ: dấu cách, tiếng Việt có dấu) TRƯỚC KHI ký, đảm bảo chuỗi ký khớp với
-    // dữ liệu được gửi trong URL.
-    const signData = querystring.stringify(vnp_Params, { encode: true });
+    const sorted = sortObject(vnp_Params);
+    console.log('--- VNPAY Params AFTER Sort ---');
+    console.log(sorted);
 
-    const hmac = crypto.createHmac('sha512', secretKey);
-    const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
+    const signData = buildSignData(sorted);
+    const secureHash = hmacSha512(secretKey, signData);
 
-    // Debug log để kiểm tra
-    console.log("=== Create Debug ===");
-    console.log("SignData (URL Encoded):", signData);
-    console.log("SecureHash:", signed);
+    vnp_Params.vnp_SecureHash = secureHash;
 
-    // Bước 2: Thêm vnp_SecureHashType và vnp_SecureHash cho URL
-    const urlParams = {
-        ...vnp_Params,
-        vnp_SecureHashType: 'HmacSHA512',
-        vnp_SecureHash: signed
-    };
+    const paymentUrl = `${vnpUrl}?${qs.stringify(vnp_Params, { encode: true })}`;
 
-    // Bước 3: Build URL với encode: true (đã được đảm bảo bởi querystring.stringify)
-    // Sắp xếp lại lần cuối để đảm bảo thứ tự hash nằm cuối (mặc dù không bắt buộc)
-    return `${vnpUrl}?${querystring.stringify(sortObject(urlParams), { encode: true })}`;
-};
+    console.log('--- SIGN DEBUG ---');
+    console.log('signData RAW:', signData);
+    console.log('secureHash:', secureHash);
+    console.log('paymentUrl:', paymentUrl);
 
-// 📦 2. Kiểm tra trả về từ VNPay
-export const verifyReturnService = async (req) => {
-    let vnp_Params = req.query;
-    const secureHash = vnp_Params['vnp_SecureHash'];
-    const secretKey = process.env.VNP_HASH_SECRET;
+    // trả luôn signData và secureHash để debug
+    return { paymentUrl, signData, secureHash, paramsBeforeSort: vnp_Params, paramsSorted: sorted };
+}
 
-    delete vnp_Params['vnp_SecureHash'];
-    delete vnp_Params['vnp_SecureHashType'];
+export async function verifyReturnService(req) {
+    const secretKey = (process.env.VNP_HASH_SECRET || '').trim();
+    if (!secretKey) throw new Error('Missing VNP_HASH_SECRET');
 
-    // Sắp xếp các tham số (vẫn là các giá trị đã DECODE)
-    vnp_Params = sortObject(vnp_Params);
+    const vnp_Params = { ...req.query };
+    const receivedHash = vnp_Params.vnp_SecureHash?.toString();
+    delete vnp_Params.vnp_SecureHash;
+    delete vnp_Params.vnp_SecureHashType;
 
-    // FIX LỖI CHỮ KÝ: Phải RE-ENCODE (mã hóa lại) các giá trị đã bị Express/Node.js DECODE
-    // từ req.query TRƯỚC KHI ký, để chuỗi ký khớp với chuỗi đã được ký ở bước 1.
-    const signData = querystring.stringify(vnp_Params, { encode: true });
+    const sorted = sortObject(vnp_Params);
+    const signData = buildSignData(sorted);
+    const expectedHash = hmacSha512(secretKey, signData);
 
-    const hmac = crypto.createHmac('sha512', secretKey);
-    const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
+    const ok = expectedHash === (receivedHash || '');
 
-    // Debug log
-    console.log("=== Verify Debug ===");
-    console.log("SignData (URL Encoded):", signData);
-    console.log("Expected hash:", signed);
-    console.log("Received hash:", secureHash);
+    console.log('--- VERIFY RETURN DEBUG ---');
+    console.log('receivedHash:', receivedHash);
+    console.log('expectedHash:', expectedHash);
+    console.log('signData:', signData);
 
-    if (secureHash === signed) {
-        return {
-            success: true,
-            message: 'Thanh toán thành công',
-            data: vnp_Params,
-        };
-    } else {
-        return {
-            success: false,
-            message: 'Chữ ký không hợp lệ',
-            data: vnp_Params,
-        };
+    return { success: ok, expectedHash, receivedHash, signData, data: vnp_Params };
+}
+
+export async function verifyIpnService(req) {
+    const secretKey = (process.env.VNP_HASH_SECRET || '').trim();
+    if (!secretKey) throw new Error('Missing VNP_HASH_SECRET');
+
+    const vnp_Params = { ...req.query };
+    const receivedHash = vnp_Params.vnp_SecureHash?.toString();
+    delete vnp_Params.vnp_SecureHash;
+    delete vnp_Params.vnp_SecureHashType;
+
+    const sorted = sortObject(vnp_Params);
+    const signData = buildSignData(sorted);
+    const expectedHash = hmacSha512(secretKey, signData);
+
+    console.log('--- VERIFY IPN DEBUG ---');
+    console.log('receivedHash:', receivedHash);
+    console.log('expectedHash:', expectedHash);
+    console.log('signData:', signData);
+
+    if (expectedHash === (receivedHash || '')) {
+        return { RspCode: '00', Message: 'Success', expectedHash, receivedHash, signData };
     }
-};
+    return { RspCode: '97', Message: 'Fail checksum', expectedHash, receivedHash, signData };
+}
 
-// 📦 3. IPN (khi VNPay gửi notify)
-export const verifyIpnService = async (req) => {
-    let vnp_Params = req.query;
-    const secureHash = vnp_Params['vnp_SecureHash'];
-    const secretKey = process.env.VNP_HASH_SECRET;
-
-    // Bước 1: Loại bỏ các tham số không dùng để ký và Hash
-    delete vnp_Params['vnp_SecureHash'];
-    delete vnp_Params['vnp_SecureHashType'];
-
-    // Bước 2: Sắp xếp
-    vnp_Params = sortObject(vnp_Params);
-
-    // Bước 3: Tạo chuỗi ký (SignData) đã RE-ENCODE TỪ TẤT CẢ CÁC THAM SỐ CÒN LẠI
-    // (Vì hàm tạo ký tất cả)
-    const signData = querystring.stringify(vnp_Params, { encode: true });
-
-    const hmac = crypto.createHmac('sha512', secretKey);
-    const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
-
-    // Debug log
-    console.log("=== Verify IPN Debug ===");
-    console.log("SignData (URL Encoded):", signData);
-    console.log("Expected hash:", signed);
-    console.log("Received hash:", secureHash);
-
-    if (secureHash === signed) {
-        return { RspCode: '00', Message: 'success' };
-    } else {
-        return { RspCode: '97', Message: 'Fail checksum' };
-    }
-};
+export const _debug = { sortObject, formatVNDate, formatExpireDate, getClientIp, buildSignData, hmacSha512 };
