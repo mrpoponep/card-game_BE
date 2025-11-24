@@ -1,12 +1,32 @@
+// Load environment variables FIRST before any other imports
+import './config/dotenv-config.js';
+
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import cookieParser from 'cookie-parser';
+import { authenticateJWT } from './middleware/auth.js';
+import rateLimit from 'express-rate-limit';
 
 // Import routes
 import rankingRoute from './route/RankingRoute.js';
-import createGameRoom from './route/createRoomRoute.js';
-import findRoomRoute from "./route/findRoomRoute.js";
-import reportRoute from './route/ReportRoute.js';
+import roomRoute from './route/roomRoute.js';
+import authRoute from './route/AuthRoute.js';
+import dailyRewardRoute from './route/DailyRewardRoute.js';
+import eloRewardRoute from './route/EloRewardRoute.js';
+import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
+import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
+import paymentRoutes from "./route/paymentRoutes.js";
+
+
+
 const app = express();
+
+// Cấu hình __dirname cho ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Configure CORS for Express
 app.use(cors({
@@ -15,8 +35,61 @@ app.use(cors({
 }));
 
 // Basic middleware
-app.use(express.json());                        // Cho JSON data
+app.use(express.json());               // Cho JSON data
 app.use(express.urlencoded({ extended: true })); // Cho form-urlencoded
+app.use(cookieParser());
+
+// Rate limit: Chỉ apply trong production, tắt trong development
+const isDev = process.env.NODE_ENV === 'development';
+
+if (!isDev) {
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    message: { success: false, message: 'Bạn gửi quá nhiều yêu cầu, vui lòng thử lại sau.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use('/api', apiLimiter);
+  console.log('✅ Rate limiting enabled (production mode)');
+} else {
+  console.log('⚠️  Rate limiting disabled (development mode)');
+}
+
+// Thư mục các file public
+app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// Fallback cho avatar mặc định nếu file không tồn tại
+app.get('/avatar/*', (req, res) => {
+  const requestedPath = req.params[0]; // Lấy phần sau /avatar/ (không có đuôi)
+
+  const avatarDir = path.join(__dirname, '..', 'public', 'avatar');
+
+  // Lấy danh sách files trong thư mục avatar
+  let files;
+  try {
+    files = fs.readdirSync(avatarDir);
+  } catch (error) {
+    console.error('Error reading avatar directory:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+
+  // Tìm file có tên bắt đầu bằng requestedPath + '.'
+  const matchingFile = files.find(file => file.startsWith(requestedPath + '.'));
+
+  if (matchingFile) {
+    const fullPath = path.join(avatarDir, matchingFile);
+    return res.sendFile(fullPath);
+  } else {
+    // Trả về avatar mặc định
+    const defaultPath = path.join(avatarDir, 'default.png');
+    if (fs.existsSync(defaultPath)) {
+      return res.sendFile(defaultPath);
+    } else {
+      return res.status(404).json({ success: false, message: 'Avatar not found' });
+    }
+  }
+});
 
 // 🔍 Request & Response logger middleware
 app.use((req, res, next) => {
@@ -106,11 +179,36 @@ app.get('/', (req, res) => {
 });
 
 // API Routes
-app.use('/api', rankingRoute);
+app.use('/api/auth', authRoute);
 
-// REST API Routes - PostgreSQL integration
-app.use("/api/room", createGameRoom);
-app.use("/api/room", findRoomRoute);
-app.use("/api/reports", reportRoute);
+// Bảo vệ tất cả các route /api ngoại trừ /api/auth/login, /api/auth/refresh, /api/auth/logout
+app.use((req, res, next) => {
+  const openAuthPaths = [
+    '/api/auth/login',
+    '/api/auth/refresh',
+    '/api/auth/send-reset-otp',
+    '/api/auth/verify-otp-reset-password',
+    '/api/auth/register',  // Cho phép đăng ký
+    '/avatar',
+    '/api/payment/vnpay_return',  // Chỉ mở callback return từ VNPay (không có auth header)
+    '/api/payment/vnpay_ipn',     // Chỉ mở IPN webhook từ VNPay (không có auth header)
+  ];
+  // Nếu path bắt đầu bằng 1 trong các openAuthPaths thì bỏ qua xác thực
+  if (openAuthPaths.some(path => req.path === path || req.path.startsWith(path + '/'))) {
+    return next();
+  }
+  return authenticateJWT(req, res, next);
+});
+
+app.use('/api/rankings', rankingRoute);
+app.use('/api/room', roomRoute);
+app.use('/api/daily-reward', dailyRewardRoute);
+app.use('/api/elo-reward', eloRewardRoute);
+app.use('/api/weekly-reward', weeklyRewardRoute);
+app.use('/api/monthly-reward', monthlyRewardRoute);
+app.use('/api/payment', paymentRoutes);
+
+
+// (room routes consolidated in /api/room via roomRoute)
 
 export default app;

@@ -1,12 +1,9 @@
 // models/User.js
 import db from './DatabaseConnection.js';
 
-/**
- * User Model - Định nghĩa cấu trúc và validation cho User
- */
 class User {
-  // Tạo mảng để lưu các user đã được khởi tạo
-  static instances = [];
+  // Bỏ static instances, việc cache này gây ra lỗi treo server.
+  // Nếu cần cache trong tương lai, nên dùng một giải pháp chuyên dụng như Redis.
 
   constructor({
     user_id = null,
@@ -15,42 +12,21 @@ class User {
     balance = 0,
     banned = false,
     elo = 1000,
+    avatar_url = null,
   }) {
-    if (user_id) {
-      if (username === null) {
-        const dbExisting = User.findById(user_id);
-        if (dbExisting) {
-          return dbExisting;
-        }
-      }
-      this.user_id = user_id;
-      this.username = username; 
-      this.password = password;
-      this.balance = balance;
-      this.banned = banned;
-      this.elo = elo;
-      User.instances.push(this);
-      return this;
-    }
-    
+    this.user_id = user_id;
     this.username = username;
     this.password = password;
-    this.balance = balance;
-    this.banned = banned;
-    this.elo = elo;
-
-    // Validate dữ liệu khi tạo instance
-    this.validate();
-
-    User.instances.push(this);
+    this.balance = Number(balance) || 0; // Đảm bảo balance là một con số
+    this.banned = Boolean(banned);
+    this.elo = Number(elo) || 1000;
+    this.avatar_url = avatar_url;
   }
 
-  // 🔍 VALIDATION METHODS
   validate() {
     if (!this.username || this.username.length < 3) {
       throw new Error('User name must be at least 3 characters long');
     }
-
     if (this.elo < 0) {
       throw new Error('Elo cannot be negative');
     }
@@ -78,92 +54,55 @@ class User {
   }
 
   async getRank() {
-    // Lấy vị trí xếp hạng của người chơi dựa trên elo
-    const rank = await db.query("SELECT COUNT(*) + 1 AS 'rank' FROM user WHERE elo > ? AND banned = false", [this.elo]);
-    return rank[0].rank;
+    // Olympic ranking: người cùng ELO có cùng rank
+    // Rank = số người có ELO STRICTLY GREATER + 1
+    // Ví dụ: 2 người ELO 2500 (rank 1), 1 người ELO 2000 (rank 3)
+    const result = await db.query(
+      "SELECT COUNT(*) + 1 AS 'rank' FROM user WHERE elo > ? AND banned = false",
+      [this.elo]
+    );
+    return result[0].rank;
   }
 
   // 🔄 SERIALIZATION
   toJSON() {
     return {
-      id: this.id,
-      name: this.name,
-      gamesPlayed: this.gamesPlayed,
-      winRate: this.winRate,
+      user_id: this.user_id,
+      username: this.username,
       balance: this.balance,
       banned: this.banned,
       elo: this.elo,
+      avatar_url: this.avatar_url,
     };
   }
 
-  // � DATABASE OPERATIONS
-  /**
-   * Lưu thay đổi vào database
-   * @returns {Promise<User>} Updated user instance
-   */
   async save() {
-    this.validate(); // Validate trước khi save
-    
+    this.validate();
     if (this.user_id) {
-      // UPDATE existing user
       return await User.updateInDatabase(this);
     } else {
-      // CREATE new user
       return await User.insertIntoDatabase(this);
     }
   }
 
-  // 🗄️ STATIC DATABASE METHODS
-  /**
-   * Tìm user theo ID
-   */
+  // 🗄️ STATIC DATABASE METHODS (Đã sửa lỗi)
   static async findById(user_id) {
-    // Tìm user trong bộ nhớ trước
-    const cachedUser = User.instances.find(user => user.user_id === user_id);
-    if (cachedUser) {
-      return cachedUser;
-    }
-
     const dbRow = (await db.query('SELECT * FROM user WHERE user_id = ?', [user_id]))[0];
     if (dbRow) {
-      const data = {
-        user_id: dbRow.user_id,
-        username: dbRow.username,
-        password: dbRow.password,
-        balance: dbRow.balance,
-        banned: dbRow.banned,
-        elo: dbRow.elo,
-      };
-      return new User(data);
+      return new User(dbRow); // Trả về instance User, không gọi lại findById
     }
     return null;
   }
 
-  /**
-   * Tìm user theo name
-   */
   static async findByName(name) {
-    // Tìm user trong bộ nhớ trước
-    const cachedUser = User.instances.find(user => user.username === name);
-    if (cachedUser) {
-      return cachedUser;
-    }
-
     const dbRow = (await db.query('SELECT * FROM user WHERE username = ?', [name]))[0];
     if (dbRow) {
-      const data = {
-        user_id: dbRow.user_id,
-        username: dbRow.username,
-        password: dbRow.password,
-        balance: dbRow.balance,
-        banned: dbRow.banned,
-        elo: dbRow.elo,
-      };
-      return new User(data);
+      return new User(dbRow); // Trả về instance User
     }
     return null;
   }
 
+  // (Các hàm khác giữ nguyên cấu trúc nhưng đảm bảo chúng hoạt động với constructor mới)
   static async listRankings(limit = 100) {
     const dbRows = await db.query(
       `SELECT * FROM user WHERE banned = false ORDER BY elo DESC LIMIT ${limit}`
@@ -171,45 +110,70 @@ class User {
     return dbRows.map(row => new User(row));
   }
 
-  /**
-   * Tạo user mới trong database
-   */
   static async insertIntoDatabase(user) {
     const query = `
-      INSERT INTO user (username, password, elo)
-      VALUES (?, ?, ?)
+      INSERT INTO user (username, password, elo, avatar_url, balance, banned)
+      VALUES (?, ?, ?, ?, ?, ?)
     `;
-    
     const result = await db.query(query, [
       user.username,
       user.password,
       user.elo,
+      user.avatar_url,
+      user.balance,
+      user.banned
     ]);
-    
     user.user_id = result.insertId;
     return user;
   }
 
-  /**
-   * Cập nhật user trong database
-   */
   static async updateInDatabase(user) {
     const query = `
       UPDATE user
-      SET username = ?, password = ?, elo = ?, balance = ?, banned = ?
+      SET username = ?, password = ?, elo = ?, balance = ?, banned = ?, avatar_url = ?
       WHERE user_id = ?
     `;
-    
     await db.query(query, [
       user.username,
       user.password,
       user.elo,
       user.balance,
       user.banned,
+      user.avatar_url,
       user.user_id
     ]);
-    
     return user;
+  }
+
+  // 💰 Payment methods
+  async updateBalance(amount) {
+    if (typeof amount !== 'number' || isNaN(amount)) {
+      throw new Error('Invalid amount for balance update');
+    }
+
+    // Atomic update để tránh race condition
+    const query = `
+      UPDATE user 
+      SET balance = balance + ? 
+      WHERE user_id = ?
+    `;
+    await db.query(query, [amount, this.user_id]);
+
+    // Refresh balance từ database
+    const updated = await User.findById(this.user_id);
+    if (updated) {
+      this.balance = updated.balance;
+    }
+
+    return this;
+  }
+
+  static async updateBalanceById(userId, amount) {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+    return await user.updateBalance(amount);
   }
 }
 
