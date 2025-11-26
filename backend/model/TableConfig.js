@@ -59,5 +59,47 @@ export const createTable = async (
     [result.insertId]
   );
 
+    return rows[0];
+};
+
+//Lấy danh sách bàn
+/**
+ * 🧩 Lấy danh sách các bàn theo trạng thái public/private
+ * @param {boolean} isPrivate - true (lấy bàn private) hoặc false (lấy bàn public)
+ * @returns {Promise<Array>} Danh sách các bàn
+ */
+export const listTables = async (isPrivate = false) => {
+    const sql = `
+    SELECT table_id, room_code, min_players, max_players, small_blind, max_blind,
+           min_buy_in, max_buy_in, rake, is_private, status, created_by
+    FROM table_info
+    WHERE is_private = ?
+    ORDER BY table_id DESC
+  `;
+  try {
+    const rows = await db.query(sql, [isPrivate]);
+    return rows;
+  } catch (error) {
+    console.error('Error fetching table list:', error);
+    throw error;
+  }
+};
+
+export const getTableMetrics = async () => {
+    const sql = `
+    SELECT 
+      COUNT(*) AS totalTables,
+      SUM(CASE WHEN is_private = false THEN 1 ELSE 0 END) AS publicTables,
+      SUM(CASE WHEN is_private = true THEN 1 ELSE 0 END) AS privateTables,
+      SUM(CASE WHEN status = 'playing' THEN 1 ELSE 0 END) AS activeTables
+   FROM table_info
+  `;
+  try {
+    const rows = await db.query(sql);
+    return rows[0];
+  } catch (error) {
+    console.error('Error fetching table metrics:', error);
+    throw error;
+  }
   return rows[0]; // Trả về object đầy đủ (sẽ bao gồm max_players)
 };
