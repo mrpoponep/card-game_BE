@@ -120,12 +120,40 @@ function endHand(io, roomCode) {
   if (!roomState[roomCode]) return;
   const room = roomState[roomCode];
 
+  // TODO: Implement actual winner determination logic
+  // For now, randomly select a winner from active players
+  const activePlayers = room.seats.filter(seat => seat);
+  const winnerIndex = Math.floor(Math.random() * activePlayers.length);
+  const winnerId = activePlayers[winnerIndex]?.user_id;
+
+  // Prepare match result data
+  const matchResultData = {
+    roomCode: roomCode,
+    winnerId: winnerId,
+    players: room.seats.map(seat => {
+      if (!seat) return null;
+      const s = io.of('/').sockets.get(seat.socketId);
+      const u = s?.user || {};
+      return {
+        user_id: u.user_id || seat.user_id,
+        username: u.username || 'Unknown',
+        balance: u.balance || 0,
+        isWinner: (u.user_id || seat.user_id) === winnerId
+      };
+    }).filter(p => p)
+  };
+
   room.gameState = {
     ...(room.gameState || {}),
     status: 'finished',
     hands: {},
+    matchResult: matchResultData
   };
+
   sendFullRoomStateUpdate(io, roomCode);
+
+  // Emit match result event to all players in the room
+  io.to(roomCode).emit('matchFinished', matchResultData);
 
   room.gameState = { status: 'waiting' };
 

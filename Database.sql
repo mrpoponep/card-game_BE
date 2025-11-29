@@ -74,28 +74,50 @@ CREATE TABLE Game_History (
 );
 
 -- ===========================================================
--- 5. Bảng Banned_Player
+-- 5. Bảng Report
 -- ===========================================================
-CREATE TABLE Banned_Player (
+CREATE TABLE Report (
     report_id INT AUTO_INCREMENT PRIMARY KEY,
+    reporter_id INT NOT NULL,
     reported_id INT NOT NULL,
-    reason TEXT,
-    chat_history TEXT,
+    type VARCHAR(50) NOT NULL,
+    reason TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (reporter_id) REFERENCES User(user_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (reported_id) REFERENCES User(user_id)
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ===========================================================
--- 6. Bảng Appeal
+-- 6. Bảng Banned_Player
+-- ===========================================================
+CREATE TABLE Banned_Player (
+    ban_id INT AUTO_INCREMENT PRIMARY KEY,
+    report_id INT,
+    reported_id INT NOT NULL,
+    reason TEXT,
+    chat_history TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (report_id) REFERENCES Report(report_id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    FOREIGN KEY (reported_id) REFERENCES User(user_id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- ===========================================================
+-- 7. Bảng Appeal
 -- ===========================================================
 CREATE TABLE Appeal (
     appeal_id INT AUTO_INCREMENT PRIMARY KEY,
-    report_id INT NOT NULL,
+    report_id INT,
+    ban_id INT NOT NULL,
     action VARCHAR(100),
     appeal_by INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (report_id) REFERENCES Banned_Player(report_id)
+    FOREIGN KEY (report_id) REFERENCES Report(report_id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    FOREIGN KEY (ban_id) REFERENCES Banned_Player(ban_id)
         ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (appeal_by) REFERENCES User(user_id)
         ON DELETE CASCADE ON UPDATE CASCADE
@@ -106,8 +128,12 @@ CREATE INDEX idx_user_gems ON User(gems);
 CREATE INDEX idx_user_elo ON User(elo);
 CREATE INDEX idx_tx_user ON Transactions(user_id);
 CREATE INDEX idx_game_table ON Game_History(table_id);
+CREATE INDEX idx_report_reporter ON Report(reporter_id);
+CREATE INDEX idx_report_reported ON Report(reported_id);
 CREATE INDEX idx_ban_user ON Banned_Player(reported_id);
+CREATE INDEX idx_ban_report ON Banned_Player(report_id);
 CREATE INDEX idx_appeal_report ON Appeal(report_id);
+CREATE INDEX idx_appeal_ban ON Appeal(ban_id);
 
 -- ===========================================================
 -- 7. Bảng refresh_tokens cho xác thực an toàn
@@ -589,12 +615,17 @@ VALUES (1, 2, 1000, 'Won from Bob', 'game');  -- Alice nhận 1000 từ Bob, Bob
 
 
 -- Báo cáo người chơi xấu
-INSERT INTO Banned_Player (reported_id, reason, chat_history)
-VALUES (2, 'Using offensive language in chat', '“You are so bad, noob!”');
+INSERT INTO Report (reporter_id, reported_id, type, reason)
+VALUES
+(1, 2, 'offensive_language', 'Using offensive language in chat'),
+(3, 2, 'cheating', 'Suspected of cheating in game');
+
+INSERT INTO Banned_Player (report_id, reported_id, reason, chat_history)
+VALUES (1, 2, 'Using offensive language in chat', '"You are so bad, noob!"');
 
 -- Đơn khiếu nại (appeal)
-INSERT INTO Appeal (report_id, action, appeal_by)
-VALUES (1, NULL, 2);
+INSERT INTO Appeal (report_id, ban_id, action, appeal_by)
+VALUES (1, 1, 'Reviewed: Account temporarily suspended', 2);
 
 -- ===========================================================
 -- 10. Ví dụ test hệ thống giao dịch (có thể uncomment để test)
