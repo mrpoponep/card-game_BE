@@ -23,4 +23,17 @@ export function register(io, socket){
         };
         io.to(GLOBAL_CHAT_ROOM).emit('receiveGlobalMessage', messagePayload);
     });
+
+    socket.on('sendRoomMessage', ({ roomCode, text }) => {
+    if (!text?.trim() || !roomCode) return;
+    const user = socket.user;
+    if (!user) return;
+    io.to(roomCode).emit('receiveRoomMessage', {
+      userId: user.user_id,
+      username: user.username,
+      text: text.trim(),
+      timestamp: new Date(),
+      type: 'room'
+    });
+  });
 }
