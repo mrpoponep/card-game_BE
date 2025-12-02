@@ -21,6 +21,8 @@ import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
 import paymentRoutes from "./route/paymentRoutes.js";
 import admin from './route/adminRoutes.js';
 import listRoomsRoute from './route/listRoomsRoute.js';
+import bannedPlayerRoute from './route/BannedPlayerRoutes.js';
+import aiReportRoutes from './route/AIReportRoutes.js';
 
 const app = express();
 
@@ -209,6 +211,31 @@ app.use('/api/monthly-reward', monthlyRewardRoute);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/admin', admin);
 app.use('/api/listRoom', listRoomsRoute);
+app.use('/api/ban', bannedPlayerRoute);
+app.use('/api/ban/ai', authenticateJWT, aiReportRoutes);
 // (room routes consolidated in /api/room via roomRoute)
+
+// DEBUG: danh sách routes hiện tại (tạm thời, để debug)
+app.get('/__routes', (req, res) => {
+  try {
+    const routes = [];
+    app._router.stack.forEach((middleware) => {
+      if (middleware.route) {
+        // routes registered directly on the app
+        routes.push({ path: middleware.route.path, methods: middleware.route.methods });
+      } else if (middleware.name === 'router' && middleware.handle && middleware.handle.stack) {
+        // router middleware
+        middleware.handle.stack.forEach((handler) => {
+          if (handler.route) {
+            routes.push({ path: handler.route.path, methods: handler.route.methods });
+          }
+        });
+      }
+    });
+    res.json(routes);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
 
 export default app;
