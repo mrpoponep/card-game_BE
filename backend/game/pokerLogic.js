@@ -33,7 +33,7 @@ function nextOccupiedSeat(seats, currentSeatIdx) {
   for (let i = 0; i < len; i++) {
     idx = (idx + 1) % len;
     const player = seats[idx];
-    if (player && player.chips > 0) return idx;
+    if (player && player.inHand && player.chips > 0) return idx;
   }
   return -1;
 }
@@ -41,13 +41,25 @@ function nextOccupiedSeat(seats, currentSeatIdx) {
 /* ------------------------------ Game Flow ------------------------------ */
 
 export function startGame(room, io) {
-  const activePlayers = room.seats.filter(p => p !== null);
-  if (activePlayers.length < 2) return false;
+  let activeCount = 0;
+  
+  room.seats.forEach(p => {
+      if (p) {
+          if (p.chips > 0) {
+              p.inHand = true;
+              activeCount++;
+          } else {
+              p.inHand = false;
+          }
+      }
+  });
+
+  if (activeCount < 2) return false;
 
   room.deck = shuffleDeck(generateDeck());
   room.gameState = {
     ...room.gameState,
-    status: "playing", // *** CẬP NHẬT TRẠNG THÁI: ĐANG CHƠI ***
+    status: "playing",
     stage: "preflop",
     community: [],
     pot: 0,
@@ -60,7 +72,7 @@ export function startGame(room, io) {
   room.sidePots = [];
 
   room.seats.forEach(p => {
-    if (p) {
+    if (p && p.inHand) {
       p.cards = [room.deck.pop(), room.deck.pop()];
       p.folded = false;
       p.betThisRound = 0;
@@ -68,7 +80,6 @@ export function startGame(room, io) {
       p.allIn = false;
       p.isActing = false;
       p.handName = null; 
-      if (!p.chips) p.chips = p.balance || 10000; 
     }
   });
 
@@ -76,7 +87,8 @@ export function startGame(room, io) {
   let dealer = room.gameState.dealerSeat ?? -1;
   for (let i = 0; i < len; i++) {
     dealer = (dealer + 1) % len;
-    if (room.seats[dealer]) break;
+    const p = room.seats[dealer];
+    if (p && p.inHand) break;
   }
   room.gameState.dealerSeat = dealer;
 
@@ -116,7 +128,7 @@ export function advanceTurn(room) {
   
   while (attempts < len) {
     const p = room.seats[nextIdx];
-    if (p && !p.folded && !p.allIn) {
+    if (p && p.inHand && !p.folded && !p.allIn) {
       room.gameState.toActSeat = nextIdx;
       return;
     }
@@ -126,8 +138,35 @@ export function advanceTurn(room) {
   room.gameState.toActSeat = null;
 }
 
+// Hàm mới: Tự động chạy hết các vòng khi All-in
+function autoRunToShowdown(room, io, broadcastFunc, onGameEnd) {
+    const stages = ["preflop", "flop", "turn", "river", "showdown"];
+    
+    // Hàm đệ quy để chạy từng stage có delay (tạo hiệu ứng chia bài)
+    const runNextStep = () => {
+        const currentStage = room.gameState.stage;
+        
+        if (currentStage === 'finished' || currentStage === 'showdown') {
+            return; // Đã xong
+        }
+
+        // Chuyển sang stage tiếp theo
+        nextStage(room, io, broadcastFunc, onGameEnd);
+
+        // Nếu chưa xong (chưa đến showdown), tiếp tục gọi đệ quy sau 1s
+        if (room.gameState.stage !== 'finished') {
+            setTimeout(() => {
+                runNextStep();
+            }, 1500); // Delay 1.5s giữa các lần chia bài
+        }
+    };
+
+    // Bắt đầu chạy
+    runNextStep();
+}
+
 export function checkAdvanceStage(room, io, broadcastFunc, onGameEnd) {
-  const activePlayers = room.seats.filter(p => p && !p.folded);
+  const activePlayers = room.seats.filter(p => p && p.inHand && !p.folded);
   
   if (activePlayers.length === 1) {
     resolveShowdown(room, io, broadcastFunc, onGameEnd);
@@ -142,6 +181,24 @@ export function checkAdvanceStage(room, io, broadcastFunc, onGameEnd) {
   const isRoundComplete = allCalled && (nextSeat === room.gameState.roundStarterSeat || nextSeat === null);
 
   if (isRoundComplete) {
+    // *** LOGIC ALL-IN MỚI ***
+    // Kiểm tra số người còn có thể hành động (chưa all-in)
+    const playersWithChips = activePlayers.filter(p => !p.allIn).length;
+
+    // Nếu tất cả đã all-in HOẶC chỉ còn 1 người có tiền (còn lại all-in)
+    // => Không ai có thể cược thêm nữa -> Auto Run
+    if (playersWithChips <= 1) {
+        room.gameState.lastAction = "All-in! Chia bài...";
+        room.gameState.toActSeat = null; // Khóa lượt đi
+        broadcastFunc(io, room.roomCode || room.roomId);
+        
+        // Gọi hàm tự động chia bài
+        setTimeout(() => {
+            autoRunToShowdown(room, io, broadcastFunc, onGameEnd);
+        }, 1000);
+        return true;
+    }
+
     nextStage(room, io, broadcastFunc, onGameEnd);
     return true;
   }
@@ -171,7 +228,7 @@ export function nextStage(room, io, broadcastFunc, onGameEnd) {
   }
 
   room.seats.forEach(p => {
-    if (p) p.betThisRound = 0;
+    if (p && p.inHand) p.betThisRound = 0;
   });
   room.gameState.currentBet = 0;
   room.gameState.minRaise = BB_AMOUNT; 
@@ -183,14 +240,19 @@ export function nextStage(room, io, broadcastFunc, onGameEnd) {
   broadcastFunc(io, room.roomCode || room.roomId);
 }
 
+// handleAction giữ nguyên logic cũ, không thay đổi gì ở đây
 export function handleAction(room, socketId, action, opts = {}, io, broadcastFunc, onGameEnd) {
-  // Chặn thao tác nếu game đã kết thúc
   if (room.gameState.status === 'finished') return;
 
   const seatIdx = room.seats.findIndex(p => p && p.socketId === socketId);
   if (seatIdx === -1) return;
 
   const player = room.seats[seatIdx];
+
+  if (!player.inHand) {
+      io.to(socketId).emit("error", { message: "Bạn không tham gia ván này!" });
+      return;
+  }
 
   if (room.gameState.toActSeat !== seatIdx) {
     io.to(socketId).emit("error", { message: "Chưa đến lượt của bạn!" });
@@ -227,9 +289,7 @@ export function handleAction(room, socketId, action, opts = {}, io, broadcastFun
 
     case "raise": {
       const amount = Number(opts.amount); 
-      
-      if (amount < room.gameState.currentBet + room.gameState.minRaise) {
-      }
+      if (amount < room.gameState.currentBet + room.gameState.minRaise) {}
       
       const added = amount - player.betThisRound;
       if (added > player.chips) return;
@@ -284,10 +344,10 @@ export function handleAction(room, socketId, action, opts = {}, io, broadcastFun
 
 export function resolveShowdown(room, io, broadcastFunc, onGameEnd) {
   room.gameState.stage = "finished";
-  room.gameState.status = "finished"; // *** CẬP NHẬT TRẠNG THÁI: KẾT THÚC ***
+  room.gameState.status = "finished";
   room.gameState.toActSeat = null; 
   
-  const activePlayers = room.seats.filter(p => p && !p.folded);
+  const activePlayers = room.seats.filter(p => p && p.inHand && !p.folded);
   
   if (activePlayers.length === 1) {
     const winner = activePlayers[0];
@@ -335,8 +395,6 @@ export function resolveShowdown(room, io, broadcastFunc, onGameEnd) {
       winners: winnerDetails
   });
   
-  // Gửi cập nhật -> Lúc này status='finished', client sẽ nhận được bài đối thủ và hiển thị
   broadcastFunc(io, room.roomCode || room.roomId);
-  
-  if (onGameEnd) onGameEnd(); // Gọi callback để đếm ngược 5s (và xóa bài)
+  if (onGameEnd) onGameEnd();
 }
