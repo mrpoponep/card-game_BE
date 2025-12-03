@@ -18,6 +18,7 @@ import dailyRewardRoute from './route/DailyRewardRoute.js';
 import eloRewardRoute from './route/EloRewardRoute.js';
 import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
 import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
+import luckyWheelRoute from './route/luckyWheelRoute.js';
 import paymentRoutes from "./route/paymentRoutes.js";
 
 
@@ -206,6 +207,7 @@ app.use('/api/daily-reward', dailyRewardRoute);
 app.use('/api/elo-reward', eloRewardRoute);
 app.use('/api/weekly-reward', weeklyRewardRoute);
 app.use('/api/monthly-reward', monthlyRewardRoute);
+app.use('/api/lucky-wheel', luckyWheelRoute);
 app.use('/api/payment', paymentRoutes);
 
 

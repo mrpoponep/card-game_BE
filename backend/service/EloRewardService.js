@@ -248,6 +248,33 @@ class EloRewardService {
             throw error;
         }
     }
+
+    /**
+     * Lấy lịch sử nhận thưởng ELO milestone
+     * @param {number} userId - ID người dùng
+     * @returns {Promise<Array>} Danh sách lịch sử nhận thưởng
+     */
+    static async getRewardHistory(userId) {
+        try {
+            const history = await db.query(
+                `SELECT 
+                    emc.gems_received,
+                    emc.claimed_at,
+                    rs.season_name
+                FROM elo_milestone_claims emc
+                LEFT JOIN reward_seasons rs ON emc.season_id = rs.season_id
+                WHERE emc.user_id = ? AND emc.claimed_at IS NOT NULL
+                ORDER BY emc.claimed_at DESC
+                LIMIT 100`,
+                [userId]
+            );
+
+            return history;
+        } catch (error) {
+            console.error('Error getting ELO reward history:', error);
+            throw error;
+        }
+    }
 }
 
 export default EloRewardService;
