@@ -426,6 +426,34 @@ export default class AuthController {
     }
   }
 
+  // Lấy thông tin gems của user
+  static async getUserGems(req, res) {
+    try {
+      const userId = req.user?.userId || req.user?.user_id;
+      
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const users = await db.query('SELECT gems, balance, elo FROM User WHERE user_id = ?', [userId]);
+      const user = users && users[0];
+
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
+
+      res.json({ 
+        success: true, 
+        gems: user.gems || 0,
+        balance: Math.floor(user.balance) || 0,
+        elo: user.elo || 1000
+      });
+    } catch (error) {
+      console.error('Get user gems error:', error);
+      res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+  }
+
   // Xác thực OTP và liên kết email với tài khoản
   static async verifyEmailOTP(req, res) {
     const { userId, otp } = req.body;
