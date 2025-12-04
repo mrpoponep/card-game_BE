@@ -1,19 +1,38 @@
 const GLOBAL_CHAT_ROOM = 'global_chat_room';
 
-// Room chat history cache: { roomCode: [{ userId, username, text, timestamp }] }
+// Room chat history cache: { roomCode: [{ userId, player, text, timestamp }] }
 const roomChatHistory = {};
+
+/**
+ * Format date to 'YYYY-MM-DD HH:mm:ss' format
+ * @param {Date} date - Date object to format
+ * @returns {string} Formatted date string
+ */
+function formatTimestamp(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
 
 /**
  * Get chat history for a specific user in a room
  * @param {string} roomCode - Room code
  * @param {number} userId - User ID to filter messages
- * @returns {Array} Array of messages from the specified user
+ * @returns {Array} Array of messages from the specified user in format { timestamp, player, text }
  */
 export function getUserChatHistory(roomCode, userId) {
     if (!roomChatHistory[roomCode]) {
         return [];
     }
-    return roomChatHistory[roomCode].filter(msg => msg.userId === userId);
+    return roomChatHistory[roomCode].filter(msg => msg.userId === userId).map(msg => ({
+        timestamp: msg.timestamp,
+        player: msg.player,
+        text: msg.text
+    }));
 }
 
 /**
@@ -80,9 +99,9 @@ export function register(io, socket){
         }
         roomChatHistory[roomCode].push({
             userId: user.user_id,
-            username: user.username,
+            player: user.username,
             text: text.trim(),
-            timestamp: new Date().toISOString()
+            timestamp: formatTimestamp(new Date())
         });
 
         io.to(roomCode).emit('receiveRoomMessage', messagePayload);
