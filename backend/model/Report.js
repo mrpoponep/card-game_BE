@@ -11,6 +11,7 @@ class Report {
     reported_id = null,
     type = null,
     reason = null,
+    chat_history = null,
     created_at = null,
   }) {
     this.report_id = report_id;
@@ -18,6 +19,7 @@ class Report {
     this.reported_id = reported_id;
     this.type = type;
     this.reason = reason;
+    this.chat_history = chat_history;
     this.created_at = created_at;
 
     // Validate dữ liệu khi tạo instance
@@ -53,6 +55,7 @@ class Report {
       reported_id: this.reported_id,
       type: this.type,
       reason: this.reason,
+      chat_history: this.chat_history,
       created_at: this.created_at,
     };
   }
@@ -65,8 +68,8 @@ class Report {
     try {
       // Insert new report
       const result = await db.query(
-        'INSERT INTO Report (reporter_id, reported_id, type, reason) VALUES (?, ?, ?, ?)',
-        [this.reporter_id, this.reported_id, this.type, this.reason]
+        'INSERT INTO Report (reporter_id, reported_id, type, reason, chat_history) VALUES (?, ?, ?, ?, ?)',
+        [this.reporter_id, this.reported_id, this.type, this.reason, this.chat_history]
       );
       this.report_id = result.insertId;
       return this;

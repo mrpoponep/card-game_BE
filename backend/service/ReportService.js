@@ -7,15 +7,22 @@ import Report from '../model/Report.js';
 class ReportService {
   /**
    * Tạo report mới với validation
+   * @param {Object} params - Report parameters
+   * @param {number} params.reporter_id - ID của người báo cáo
+   * @param {number} params.reported_id - ID của người bị báo cáo
+   * @param {string} params.type - Loại báo cáo
+   * @param {string} params.reason - Lý do báo cáo
+   * @param {string} [params.chat_history] - Lịch sử chat của người bị báo cáo (JSON string)
    */
-  static async createReport({ reporter_id, reported_id, type, reason }) {
+  static async createReport({ reporter_id, reported_id, type, reason, chat_history = null }) {
     try {
       // Tạo report
       const report = new Report({
         reporter_id,
         reported_id,
         type,
-        reason
+        reason,
+        chat_history
       });
 
       await report.save();

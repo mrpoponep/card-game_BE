@@ -82,6 +82,7 @@ CREATE TABLE Report (
     reported_id INT NOT NULL,
     type VARCHAR(50) NOT NULL,
     reason TEXT NOT NULL,
+    chat_history TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (reporter_id) REFERENCES User(user_id)
         ON DELETE CASCADE ON UPDATE CASCADE,

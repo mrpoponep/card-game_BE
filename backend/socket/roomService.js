@@ -1,5 +1,6 @@
 import * as PokerGame from '../game/pokerLogic.js';
-import db from '../model/DatabaseConnection.js'; 
+import db from '../model/DatabaseConnection.js';
+import { clearRoomChatHistory } from './chatService.js';
 
 const roomState = {};
 
@@ -181,7 +182,11 @@ async function onGameEnd(io, roomCode) {
     }
 
     // 4. Đợi 5 giây rồi bắt đầu ván mới (nếu còn đủ người)
+    // Note: Clear chat history AFTER the delay so reports can still access it during result screen
     setTimeout(() => {
+        // Clear chat history before starting next game
+        clearRoomChatHistory(roomCode);
+
         if (roomState[roomCode]) {
             const playerCount = roomState[roomCode].seats.filter(p => p).length;
             if (playerCount >= 2) {

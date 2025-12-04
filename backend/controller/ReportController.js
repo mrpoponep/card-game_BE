@@ -1,5 +1,6 @@
 // controller/ReportController.js
 import ReportService from '../service/ReportService.js';
+import { getUserChatHistoryJSON } from '../socket/chatService.js';
 
 /**
  * Report Controller - Xử lý các request liên quan đến báo cáo người chơi
@@ -10,7 +11,7 @@ class ReportController {
    */
   static async createReport(req, res) {
     try {
-      const { reporter_id, reported_id, type, reason } = req.body;
+      const { reporter_id, reported_id, type, reason, roomCode } = req.body;
 
       // Validate input
       if (!reporter_id || !reported_id || !type || !reason) {
@@ -20,12 +21,23 @@ class ReportController {
         });
       }
 
+      // Get chat history for the reported player if roomCode is provided
+      let chat_history = null;
+      if (roomCode) {
+        chat_history = getUserChatHistoryJSON(roomCode, reported_id);
+        // If empty array, set to null
+        if (chat_history === '[]') {
+          chat_history = null;
+        }
+      }
+
       // Sử dụng ReportService để tạo report
       const result = await ReportService.createReport({
         reporter_id,
         reported_id,
         type,
-        reason
+        reason,
+        chat_history
       });
 
       return res.status(201).json({
