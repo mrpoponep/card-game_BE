@@ -181,7 +181,7 @@ async function onGameEnd(io, roomCode) {
         }
     }
 
-    // 4. Đợi 5 giây rồi bắt đầu ván mới (nếu còn đủ người)
+    // 4. Đợi 15 giây rồi bắt đầu ván mới (nếu còn đủ người)
     // Note: Clear chat history AFTER the delay so reports can still access it during result screen
     setTimeout(() => {
         // Clear chat history before starting next game
@@ -198,7 +198,7 @@ async function onGameEnd(io, roomCode) {
                 sendFullRoomStateUpdate(io, roomCode);
             }
         }
-    }, 5000);
+    }, 15000);
 }
 
 function resetRoomToWaiting(room) {
