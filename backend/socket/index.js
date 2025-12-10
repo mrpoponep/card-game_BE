@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { isAccessTokenValidForUser } from '../authTokenStore.js';
 import User from '../model/User.js';
 import * as roomService from './roomService.js';
+import * as roomAIService from './roomAiService.js';
 import * as chatService from './chatService.js';
 
 
@@ -57,6 +58,7 @@ export default function attachSocketServices(io) {
     handleForceLogout(io, socket);
 
     roomService.register(io, socket);
+    roomAIService.register(io, socket);
     chatService.register(io, socket);
   });
 }
