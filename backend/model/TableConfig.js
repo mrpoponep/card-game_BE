@@ -65,7 +65,12 @@ export const createTable = async (
 // 🧩 Lấy tất cả bàn public
 export const getAllPublicTables = async () => {
   const rows = await db.query(
-    `SELECT * FROM Table_Info WHERE is_private = FALSE ORDER BY created_at DESC`
+    `SELECT 
+      t.*,
+      0 as current_players
+     FROM Table_Info t
+     WHERE is_private = FALSE 
+     ORDER BY created_at DESC`
   );
   return rows || [];
 };
@@ -73,10 +78,13 @@ export const getAllPublicTables = async () => {
 // 🧩 Lấy bàn theo range buy-in (cho filter level)
 export const getTablesByBuyInRange = async (minBuyIn, maxBuyIn) => {
   const rows = await db.query(
-    `SELECT * FROM Table_Info 
-         WHERE is_private = FALSE 
-         AND min_buy_in BETWEEN ? AND ?
-         ORDER BY min_buy_in ASC`,
+    `SELECT 
+      t.*,
+      0 as current_players
+     FROM Table_Info t
+     WHERE is_private = FALSE 
+     AND min_buy_in BETWEEN ? AND ?
+     ORDER BY min_buy_in ASC`,
     [minBuyIn, maxBuyIn]
   );
   return rows || [];
@@ -85,7 +93,11 @@ export const getTablesByBuyInRange = async (minBuyIn, maxBuyIn) => {
 // 🧩 Lấy bàn theo room code
 export const getByRoomCode = async (roomCode) => {
   const rows = await db.query(
-    `SELECT * FROM Table_Info WHERE room_code = ?`,
+    `SELECT 
+      t.*,
+      0 as current_players
+     FROM Table_Info t
+     WHERE t.room_code = ?`,
     [roomCode]
   );
   return rows && rows.length > 0 ? rows[0] : null;
