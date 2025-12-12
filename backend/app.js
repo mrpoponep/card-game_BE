@@ -20,6 +20,7 @@ import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
 import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
 import paymentRoutes from "./route/paymentRoutes.js";
 import reportRoute from './route/ReportRoute.js';
+import tableRoutes from './route/tableRoutes.js';
 
 
 
@@ -209,6 +210,7 @@ app.use('/api/weekly-reward', weeklyRewardRoute);
 app.use('/api/monthly-reward', monthlyRewardRoute);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/reports', reportRoute);
+app.use('/api/tables', tableRoutes);
 
 
 // (room routes consolidated in /api/room via roomRoute)
