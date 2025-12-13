@@ -24,6 +24,10 @@ import listRoomsRoute from './route/listRoomsRoute.js';
 import bannedPlayerRoute from './route/BannedPlayerRoutes.js';
 import aiReportRoutes from './route/AIReportRoutes.js';
 import userRoutes from './route/UserRoutes.js';
+import reportRoute from './route/ReportRoute.js';
+import tableRoutes from './route/tableRoutes.js';
+
+
 
 const app = express();
 
@@ -215,6 +219,10 @@ app.use('/api/listRoom', listRoomsRoute);
 app.use('/api/ban', bannedPlayerRoute);
 app.use('/api/ban/ai', authenticateJWT, aiReportRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/reports', reportRoute);
+app.use('/api/tables', tableRoutes);
+
+
 // (room routes consolidated in /api/room via roomRoute)
 
 // DEBUG: danh sách routes hiện tại (tạm thời, để debug)

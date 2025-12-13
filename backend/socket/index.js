@@ -1,8 +1,9 @@
-// Socket wiring: auth middleware, cross-service lifecycle and service registration
 import jwt from 'jsonwebtoken';
 import { isAccessTokenValidForUser } from '../authTokenStore.js';
 import User from '../model/User.js';
 import * as roomService from './roomService.js';
+import * as chatService from './chatService.js';
+
 
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'youraccesstokensecret';
 
@@ -53,12 +54,9 @@ export default function attachSocketServices(io) {
   io.on('connection', (socket) => {
     console.log(`User ${socket.user.username} connected`);
 
-    // Cross-service lifecycle handling
     handleForceLogout(io, socket);
 
-    // Register per-service handlers (keep services small and focused)
     roomService.register(io, socket);
-
-    // Future services: chatService.register(io, socket); statsService.register(...)
+    chatService.register(io, socket);
   });
 }

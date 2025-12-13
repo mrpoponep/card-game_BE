@@ -90,11 +90,21 @@ class Transaction {
         return null;
     }
 
-    static async findByUserId(userId, limit = 20) {
-        const dbRows = await db.query(
-            "SELECT * FROM Transactions WHERE user_id = ? AND source = 'vnpay' ORDER BY time DESC LIMIT ?",
-            [userId, limit]
-        );
+    static async findByUserId(userId, limit = 20, statusFilter = null) {
+        // 🔥 LIMIT không thể dùng placeholder trong MySQL prepared statement
+        // Validate limit để tránh SQL injection
+        const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
+
+        // 🔥 Filter theo status nếu được chỉ định (chỉ lấy SUCCESS)
+        let query = `SELECT * FROM Transactions WHERE user_id = ? AND source = 'vnpay'`;
+
+        if (statusFilter === 'SUCCESS') {
+            query += ` AND reason LIKE '%status:SUCCESS%'`;
+        }
+
+        query += ` ORDER BY time DESC LIMIT ${safeLimit}`;
+
+        const dbRows = await db.query(query, [userId]);
         return dbRows.map(row => new Transaction(row));
     }
 
@@ -113,9 +123,7 @@ class Transaction {
         ]);
         transaction.tx_id = result.insertId;
         return transaction;
-    }
-
-    static async updateInDatabase(transaction) {
+    } static async updateInDatabase(transaction) {
         const query = `
             UPDATE Transactions
             SET reason = ?, amount = ?
@@ -240,6 +248,51 @@ class Transaction {
       activeByTx: Number(r.activeByTx || 0),
     }));
   }
+
+    // 🔥 UPDATE status của PENDING transaction (BYPASS trigger bằng cách dùng raw SQL)
+    static async updateStatusBypassTrigger(txnRef, { status, responseCode, transactionNo, newAmount }) {
+        // Tìm transaction PENDING
+        const pendingTx = await Transaction.findByTxnRef(txnRef);
+        if (!pendingTx) {
+            throw new Error(`Transaction not found: ${txnRef}`);
+        }
+
+        const parsed = pendingTx.parseReason();
+
+        // Build reason mới với status updated
+        const updatedReason = Transaction.buildReason({
+            txnRef: parsed.txnRef || txnRef,
+            orderInfo: parsed.orderInfo,
+            status: status,
+            responseCode: responseCode,
+            transactionNo: transactionNo
+        });
+
+        // 💡 DISABLE trigger tạm thời bằng cách dùng session variable
+        await db.query('SET @TRIGGER_DISABLED = 1');
+
+        try {
+            // UPDATE transaction
+            const query = `
+                UPDATE Transactions
+                SET reason = ?, amount = ?
+                WHERE tx_id = ?
+            `;
+
+            await db.query(query, [
+                updatedReason,
+                newAmount || pendingTx.amount,
+                pendingTx.tx_id
+            ]);
+
+            pendingTx.reason = updatedReason;
+            pendingTx.amount = newAmount || pendingTx.amount;
+            return pendingTx;
+        } finally {
+            // Re-enable trigger
+            await db.query('SET @TRIGGER_DISABLED = NULL');
+        }
+    }
 }
 
 export default Transaction;
