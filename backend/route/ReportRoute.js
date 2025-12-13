@@ -11,5 +11,5 @@ const router = express.Router();
 
 // POST /api/reports - Tạo report mới
 router.post('/', ReportController.createReport);
-
+router.get('/', ReportController.listReports);
 export default router;

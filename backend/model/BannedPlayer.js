@@ -7,13 +7,17 @@ class BannedPlayer {
     reported_id = null,
     reason = null,
     chat_history = null,
-    created_at = null
+    created_at = null,
+    ai_analysis = null,
+    ai_verdict = 'pending'
   } = {}) {
     this.report_id = report_id;
     this.reported_id = reported_id;
     this.reason = reason;
     this.chat_history = chat_history;
     this.created_at = created_at;
+    this.ai_analysis = ai_analysis;
+    this.ai_verdict = ai_verdict;
   }
 
   toJSON() {
@@ -22,7 +26,9 @@ class BannedPlayer {
       reported_id: this.reported_id,
       reason: this.reason,
       chat_history: this.chat_history,
-      created_at: this.created_at
+      created_at: this.created_at,
+      ai_analysis: this.ai_analysis,
+      ai_verdict: this.ai_verdict
     };
   }
 
@@ -64,13 +70,15 @@ class BannedPlayer {
 
   static async insertIntoDatabase(bp) {
     const query = `
-      INSERT INTO Banned_Player (reported_id, reason, chat_history)
-      VALUES (?, ?, ?)
+      INSERT INTO Banned_Player (reported_id, reason, chat_history, ai_analysis, ai_verdict)
+      VALUES (?, ?, ?, ?, ?)
     `;
     const result = await db.query(query, [
       bp.reported_id,
       bp.reason,
-      bp.chat_history
+      bp.chat_history,
+      bp.ai_analysis,
+      bp.ai_verdict || 'pending'
     ]);
 
     // nếu DatabaseConnection đang trả về [result], thì chỉnh lại cho khớp
@@ -81,13 +89,15 @@ class BannedPlayer {
   static async updateInDatabase(bp) {
     const query = `
       UPDATE Banned_Player
-      SET reported_id = ?, reason = ?, chat_history = ?
+      SET reported_id = ?, reason = ?, chat_history = ?, ai_analysis = ?, ai_verdict = ?
       WHERE report_id = ?
     `;
     await db.query(query, [
       bp.reported_id,
       bp.reason,
       bp.chat_history,
+      bp.ai_analysis,
+      bp.ai_verdict,
       bp.report_id
     ]);
     return bp;
