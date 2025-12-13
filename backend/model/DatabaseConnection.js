@@ -206,6 +206,15 @@ class DatabaseConnection {
   }
 
 
+  // 🔌 Close all connections in pool
+  async end() {
+    if (this.pool) {
+      await this.pool.end();
+      this.isConnected = false;
+      console.log('✅ Database connection pool closed');
+    }
+  }
+
   // ⚠️ DANGEROUS: Only for development
   async clearAllData() {
     if (process.env.NODE_ENV === 'production') {

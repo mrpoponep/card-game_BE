@@ -20,6 +20,8 @@ import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
 import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
 import luckyWheelRoute from './route/luckyWheelRoute.js';
 import paymentRoutes from "./route/paymentRoutes.js";
+import adminRoute from './route/adminRoute.js';
+import luckyWheelRoute from './route/luckyWheelRoute.js';
 import reportRoute from './route/ReportRoute.js';
 import tableRoutes from './route/tableRoutes.js';
 
@@ -195,6 +197,7 @@ app.use((req, res, next) => {
     '/avatar',
     '/api/payment/vnpay_return',  // Chỉ mở callback return từ VNPay (không có auth header)
     '/api/payment/vnpay_ipn',     // Chỉ mở IPN webhook từ VNPay (không có auth header)
+    '/api/admin',  // Admin routes (chỉ development - có devOnly middleware trong route)
   ];
   // Nếu path bắt đầu bằng 1 trong các openAuthPaths thì bỏ qua xác thực
   if (openAuthPaths.some(path => req.path === path || req.path.startsWith(path + '/'))) {
@@ -211,10 +214,13 @@ app.use('/api/weekly-reward', weeklyRewardRoute);
 app.use('/api/monthly-reward', monthlyRewardRoute);
 app.use('/api/lucky-wheel', luckyWheelRoute);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/admin', adminRoute); // Admin endpoints for testing
+app.use('/api/lucky-wheel', luckyWheelRoute); // Lucky wheel routes
 app.use('/api/reports', reportRoute);
 app.use('/api/tables', tableRoutes);
 
 
+// (room routes consolidated in /api/room via roomRoute)
 // (room routes consolidated in /api/room via roomRoute)
 
 export default app;
