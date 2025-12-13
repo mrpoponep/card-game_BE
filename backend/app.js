@@ -21,12 +21,9 @@ import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
 import luckyWheelRoute from './route/luckyWheelRoute.js';
 import paymentRoutes from "./route/paymentRoutes.js";
 import adminRoute from './route/adminRoute.js';
-import luckyWheelRoute from './route/luckyWheelRoute.js';
 import reportRoute from './route/ReportRoute.js';
 import tableRoutes from './route/tableRoutes.js';
 import referralRoute from './route/ReferralRoute.js';
-
-
 
 const app = express();
 
