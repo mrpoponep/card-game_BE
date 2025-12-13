@@ -49,6 +49,16 @@ RESET_PASSWORD_TOKEN_EXPIRES_MINUTES=15
 
 # Admin contact
 ADMIN_CONTACT_EMAIL=btthanh2004@gmail.com
+
+
+# vnpay 
+VNP_TMN_CODE=B4HV27DX
+VNP_HASH_SECRET=EY2XGP2L9E9LYP0H1Q3UKOWTF7WCMYT3
+VNP_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+VNP_RETURN_URL=http://localhost:3000/api/payment/vnpay_return
+FRONTEND_URL=http://localhost:5173
+APP_BASE_URL=http://localhost:5173
+
 ```
 
 ## ⚠️ **Quan trọng - Phải thay đổi:**

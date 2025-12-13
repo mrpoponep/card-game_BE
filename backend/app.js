@@ -21,6 +21,8 @@ import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
 import paymentRoutes from "./route/paymentRoutes.js";
 import adminRoute from './route/adminRoute.js';
 import luckyWheelRoute from './route/luckyWheelRoute.js';
+import reportRoute from './route/ReportRoute.js';
+import tableRoutes from './route/tableRoutes.js';
 
 
 
@@ -212,6 +214,8 @@ app.use('/api/monthly-reward', monthlyRewardRoute);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/admin', adminRoute); // Admin endpoints for testing
 app.use('/api/lucky-wheel', luckyWheelRoute); // Lucky wheel routes
+app.use('/api/reports', reportRoute);
+app.use('/api/tables', tableRoutes);
 
 
 // (room routes consolidated in /api/room via roomRoute)
