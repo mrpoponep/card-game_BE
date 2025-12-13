@@ -39,7 +39,7 @@ export default class AuthController {
     if (!ok) {
       return res.status(401).json({ success: false, message: 'Sai tên đăng nhập hoặc mật khẩu' });
     }
-    
+
     // 3. Tạo access token
     const accessToken = jwt.sign({ userId: user.user_id, username: user.username, role: user.role }, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
     // Lưu access token hiện tại cho user (vô hiệu hóa token cũ ngay)
@@ -48,7 +48,7 @@ export default class AuthController {
     } catch (e) {
       console.warn('Failed to set active access token in store', e);
     }
-    
+
     // 4. Prepare tokens and session id
     const now = new Date();
     const expiresAt = new Date(now.getTime() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
@@ -147,7 +147,7 @@ export default class AuthController {
     } catch (e) {
       console.warn('Failed to set active access token in store', e);
     }
-    res.json({ success: true, accessToken, user: { userId: user.user_id, username: user.username, role: user.role, balance: Math.floor(user.balance) || 0, elo:user.elo } });
+    res.json({ success: true, accessToken, user: { userId: user.user_id, username: user.username, role: user.role, balance: Math.floor(user.balance) || 0, elo: user.elo } });
   }
 
   static async logout(req, res) {
@@ -196,7 +196,7 @@ export default class AuthController {
   // Gửi mã OTP qua email (bước 1)
   static async sendResetOTP(req, res) {
     const { username } = req.body;
-    
+
     if (!username) {
       return res.status(400).json({ success: false, message: 'Vui lòng nhập tên đăng nhập' });
     }
@@ -205,7 +205,7 @@ export default class AuthController {
       // 1. Tìm user theo username
       const users = await db.query('SELECT * FROM User WHERE username = ?', [username]);
       const user = users && users[0];
-      
+
       if (!user) {
         return res.status(404).json({ success: false, message: 'Tên đăng nhập không tồn tại' });
       }
@@ -235,7 +235,7 @@ export default class AuthController {
 
       // 5. Gửi email với OTP
       const emailSent = await sendPasswordResetOTP(user.email, user.username, otpCode);
-      
+
       if (!emailSent) {
         console.error('Failed to send OTP email to:', user.email);
         return res.status(500).json({ success: false, message: 'Không thể gửi email. Vui lòng thử lại sau' });
@@ -244,8 +244,8 @@ export default class AuthController {
       // Ẩn một phần email để bảo mật
       const hiddenEmail = user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         message: `Mã xác thực đã được gửi đến ${hiddenEmail}`,
         email: hiddenEmail
       });
@@ -315,7 +315,7 @@ export default class AuthController {
 
   // Đăng ký tài khoản mới (chỉ cần username và password)
   static async register(req, res) {
-    const { username, password } = req.body;
+    const { username, password, refCode } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({ success: false, message: 'Vui lòng nhập đầy đủ thông tin' });
@@ -347,8 +347,14 @@ export default class AuthController {
 
       const userId = result.insertId;
 
-      res.json({ 
-        success: true, 
+      // 4. Nếu có refCode thì xử lý referral
+      if (refCode) {
+        const ReferralService = (await import('../service/ReferralService.js')).default;
+        await ReferralService.activateReferral({ refCode, refereeId: userId });
+      }
+
+      res.json({
+        success: true,
         message: 'Đăng ký thành công',
         user: { userId, username }
       });
@@ -388,9 +394,9 @@ export default class AuthController {
       // 2. Kiểm tra email đã được sử dụng bởi bao nhiêu tài khoản (tối đa 5)
       const emailUsers = await db.query('SELECT * FROM User WHERE email = ? AND user_id != ?', [email, userId]);
       if (emailUsers && emailUsers.length >= 5) {
-        return res.status(409).json({ 
-          success: false, 
-          message: 'Email này đã được sử dụng cho 5 tài khoản (tối đa). Vui lòng sử dụng email khác' 
+        return res.status(409).json({
+          success: false,
+          message: 'Email này đã được sử dụng cho 5 tài khoản (tối đa). Vui lòng sử dụng email khác'
         });
       }
 
@@ -410,14 +416,14 @@ export default class AuthController {
 
       // 6. Gửi email với OTP
       const emailSent = await sendEmailVerificationOTP(email, user.username, otpCode);
-      
+
       if (!emailSent) {
         console.error('Failed to send verification email to:', email);
         return res.status(500).json({ success: false, message: 'Không thể gửi email. Vui lòng thử lại sau' });
       }
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         message: `Mã xác thực đã được gửi đến ${email}`
       });
     } catch (error) {
@@ -466,8 +472,8 @@ export default class AuthController {
       // 4. Đánh dấu OTP đã verify
       await db.query('UPDATE email_verification_tokens SET verified_at = UTC_TIMESTAMP() WHERE id = ?', [tokenRow.id]);
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         message: 'Xác thực email thành công',
         email: tokenRow.email
       });

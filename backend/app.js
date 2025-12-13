@@ -21,6 +21,7 @@ import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
 import paymentRoutes from "./route/paymentRoutes.js";
 import reportRoute from './route/ReportRoute.js';
 import tableRoutes from './route/tableRoutes.js';
+import referralRoute from './route/ReferralRoute.js';
 
 
 
@@ -194,6 +195,8 @@ app.use((req, res, next) => {
     '/avatar',
     '/api/payment/vnpay_return',  // Chỉ mở callback return từ VNPay (không có auth header)
     '/api/payment/vnpay_ipn',     // Chỉ mở IPN webhook từ VNPay (không có auth header)
+    '/api/referral/track-click',  // Public endpoint for tracking referral clicks
+    '/api/referral/validate-link', // Public endpoint for validating referral links
   ];
   // Nếu path bắt đầu bằng 1 trong các openAuthPaths thì bỏ qua xác thực
   if (openAuthPaths.some(path => req.path === path || req.path.startsWith(path + '/'))) {
@@ -211,6 +214,7 @@ app.use('/api/monthly-reward', monthlyRewardRoute);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/reports', reportRoute);
 app.use('/api/tables', tableRoutes);
+app.use('/api/referral', referralRoute);
 
 
 // (room routes consolidated in /api/room via roomRoute)
