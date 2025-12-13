@@ -9,4 +9,7 @@ router.post('/check', WeeklyRewardController.checkWeeklyReward);
 // Nhận phần thưởng tuần
 router.post('/claim', WeeklyRewardController.claimWeeklyReward);
 
+// Lấy lịch sử nhận thưởng tuần
+router.get('/history', WeeklyRewardController.getHistory);
+
 export default router;

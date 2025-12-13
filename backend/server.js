@@ -19,6 +19,9 @@ const io = new Server(server, {
 // Attach socket services (auth middleware + per-service handlers)
 attachSocketServices(io);
 
+// Export io instance for use in other services
+export { io };
+
 // Start server
 server.listen(PORT, () => {
   console.log(`🚀 Poker Server running on port ${PORT}`);
@@ -27,7 +30,8 @@ server.listen(PORT, () => {
   console.log('\n🎁 Khởi tạo hệ thống phân phối phần thưởng...');
   try {
     // Khởi động scheduler (tự động catch-up + chạy theo lịch)
-    RewardDistributionService.startScheduler();
+    // Truyền io instance để có thể gửi notifications
+    RewardDistributionService.startScheduler(io);
     
     console.log('✅ Hệ thống phân phối phần thưởng đã được khởi tạo thành công');
   } catch (error) {

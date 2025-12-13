@@ -18,7 +18,10 @@ import dailyRewardRoute from './route/DailyRewardRoute.js';
 import eloRewardRoute from './route/EloRewardRoute.js';
 import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
 import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
+import luckyWheelRoute from './route/luckyWheelRoute.js';
 import paymentRoutes from "./route/paymentRoutes.js";
+import adminRoute from './route/adminRoute.js';
+import luckyWheelRoute from './route/luckyWheelRoute.js';
 import reportRoute from './route/ReportRoute.js';
 import tableRoutes from './route/tableRoutes.js';
 import referralRoute from './route/ReferralRoute.js';
@@ -197,6 +200,7 @@ app.use((req, res, next) => {
     '/api/payment/vnpay_ipn',     // Chỉ mở IPN webhook từ VNPay (không có auth header)
     '/api/referral/track-click',  // Public endpoint for tracking referral clicks
     '/api/referral/validate-link', // Public endpoint for validating referral links
+    '/api/admin',  // Admin routes (chỉ development - có devOnly middleware trong route)
   ];
   // Nếu path bắt đầu bằng 1 trong các openAuthPaths thì bỏ qua xác thực
   if (openAuthPaths.some(path => req.path === path || req.path.startsWith(path + '/'))) {
@@ -211,12 +215,16 @@ app.use('/api/daily-reward', dailyRewardRoute);
 app.use('/api/elo-reward', eloRewardRoute);
 app.use('/api/weekly-reward', weeklyRewardRoute);
 app.use('/api/monthly-reward', monthlyRewardRoute);
+app.use('/api/lucky-wheel', luckyWheelRoute);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/admin', adminRoute); // Admin endpoints for testing
+app.use('/api/lucky-wheel', luckyWheelRoute); // Lucky wheel routes
 app.use('/api/reports', reportRoute);
 app.use('/api/tables', tableRoutes);
 app.use('/api/referral', referralRoute);
 
 
+// (room routes consolidated in /api/room via roomRoute)
 // (room routes consolidated in /api/room via roomRoute)
 
 export default app;
