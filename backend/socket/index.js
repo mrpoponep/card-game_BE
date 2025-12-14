@@ -48,6 +48,42 @@ function handleForceLogout(io, socket) {
   }
 }
 
+/**
+ * Broadcast notification to specific user (if online)
+ * @param {Object} io - Socket.IO server instance
+ * @param {Number} userId - User ID to notify
+ * @param {Object} data - Notification data
+ */
+export function notifyUser(io, userId, data) {
+  try {
+    for (const [sid, socket] of io.of('/').sockets) {
+      if (socket.user?.user_id === userId) {
+        socket.emit('newRewardAvailable', data);
+        console.log(`📨 Sent reward notification to user ${userId}`);
+        return true;
+      }
+    }
+    return false; // User not online
+  } catch (error) {
+    console.error('Error notifying user:', error);
+    return false;
+  }
+}
+
+/**
+ * Broadcast notification to all connected users
+ * @param {Object} io - Socket.IO server instance
+ * @param {Object} data - Notification data
+ */
+export function notifyAllUsers(io, data) {
+  try {
+    io.emit('newRewardAvailable', data);
+    console.log(`📢 Broadcast reward notification to all users`);
+  } catch (error) {
+    console.error('Error broadcasting to all users:', error);
+  }
+}
+
 export default function attachSocketServices(io) {
   setupAuthMiddleware(io);
 

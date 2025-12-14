@@ -41,6 +41,26 @@ class WeeklyRewardController {
       });
     }
   }
+
+  // Lấy lịch sử nhận thưởng tuần
+  async getHistory(req, res) {
+    try {
+      const userId = req.user.userId;
+      
+      const history = await WeeklyRewardService.getRewardHistory(userId);
+      
+      return res.status(200).json({
+        success: true,
+        data: history
+      });
+    } catch (error) {
+      console.error('Error getting weekly reward history:', error);
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Lỗi khi lấy lịch sử nhận thưởng tuần'
+      });
+    }
+  }
 }
 
 export default new WeeklyRewardController();

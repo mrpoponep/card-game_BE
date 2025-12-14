@@ -87,19 +87,33 @@ class RewardDistributionService {
         }
       }
       
-      // Log việc phát thưởng
-      await db.transactionQuery(
-        connection,
+      // Commit transaction TRƯỚC KHI gửi notifications
+      await db.commit(connection);
+      connection = null; // Đánh dấu đã commit để không rollback trong finally
+      
+      // Log việc phát thưởng (chạy sau commit để không block notifications)
+      await db.query(
         `INSERT INTO reward_distribution_log 
          (reward_type, period_identifier, total_users_rewarded, total_gems_distributed)
          VALUES ('weekly', ?, ?, ?)`,
         [weekIdentifier, totalRewarded, totalGems]
       );
       
-      // Commit transaction
-      await db.commit(connection);
-      
       console.log(`✅ Phần thưởng tuần ${weekIdentifier} đã được phát: ${totalRewarded} users, tổng ${totalGems} gems`);
+      
+      // Gửi notification cho tất cả users đang online
+      if (this.io) {
+        try {
+          const { notifyAllUsers } = await import('../socket/index.js');
+          notifyAllUsers(this.io, {
+            type: 'weekly',
+            message: 'Phần thưởng tuần mới đã có! 🎁',
+            weekIdentifier
+          });
+        } catch (error) {
+          console.error('⚠️ Không thể gửi notification:', error);
+        }
+      }
       
       return {
         success: true,
@@ -222,19 +236,33 @@ class RewardDistributionService {
         totalGems += gems_reward;
       }
       
-      // Log việc phát thưởng
-      await db.transactionQuery(
-        connection,
+      // Commit transaction TRƯỚC KHI gửi notifications
+      await db.commit(connection);
+      connection = null; // Đánh dấu đã commit để không rollback trong finally
+      
+      // Log việc phát thưởng (chạy sau commit)
+      await db.query(
         `INSERT INTO reward_distribution_log 
          (reward_type, period_identifier, total_users_rewarded, total_gems_distributed)
          VALUES ('monthly', ?, ?, ?)`,
         [monthIdentifier, totalRewarded, totalGems]
       );
       
-      // Commit transaction
-      await db.commit(connection);
-      
       console.log(`✅ Phần thưởng tháng ${monthIdentifier} đã được phát: ${totalRewarded} users, tổng ${totalGems} gems`);
+      
+      // Gửi notification cho tất cả users đang online
+      if (this.io) {
+        try {
+          const { notifyAllUsers } = await import('../socket/index.js');
+          notifyAllUsers(this.io, {
+            type: 'monthly',
+            message: 'Phần thưởng tháng mới đã có! 🏆',
+            monthIdentifier
+          });
+        } catch (error) {
+          console.error('⚠️ Không thể gửi notification:', error);
+        }
+      }
       
       return {
         success: true,
@@ -319,9 +347,13 @@ class RewardDistributionService {
    * Khởi động scheduler để phát thưởng tự động theo lịch
    * Gọi từ server.js khi server start
    * Tự động catch-up phát thưởng bị miss khi khởi động
+   * @param {Object} io - Socket.IO instance để gửi notifications
    */
-  static startScheduler() {
+  static startScheduler(io) {
     console.log('⏰ Khởi động scheduler phát thưởng tự động...');
+    
+    // Lưu io instance để dùng trong các hàm distribute
+    this.io = io;
     
     // Function để phát thưởng (các hàm distribute đã có logic check bên trong)
     const distributeRewards = async () => {

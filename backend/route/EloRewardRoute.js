@@ -12,4 +12,7 @@ router.post('/claim', EloRewardController.claimReward);
 // Nhận tất cả thưởng
 router.post('/claim-all', EloRewardController.claimAllRewards);
 
+// Lấy lịch sử nhận thưởng
+router.get('/history', EloRewardController.getHistory);
+
 export default router;

@@ -145,6 +145,36 @@ class WeeklyRewardService {
     monday.setHours(0, 0, 0, 0);
     return monday;
   }
+
+  /**
+   * Lấy lịch sử nhận thưởng tuần
+   * @param {number} userId 
+   * @returns {Promise<Array>}
+   */
+  static async getRewardHistory(userId) {
+    try {
+      const history = await db.query(
+        `SELECT 
+          WEEK(week_start_date) as week_number,
+          YEAR(week_start_date) as year,
+          tier_name,
+          gems_received as gems_reward,
+          elo_at_claim,
+          week_start_date,
+          claimed_at
+        FROM weekly_reward_claims 
+        WHERE user_id = ? AND claimed_at IS NOT NULL
+        ORDER BY claimed_at DESC
+        LIMIT 100`,
+        [userId]
+      );
+
+      return history;
+    } catch (error) {
+      console.error('Error getting weekly reward history:', error);
+      throw error;
+    }
+  }
 }
 
 export default WeeklyRewardService;

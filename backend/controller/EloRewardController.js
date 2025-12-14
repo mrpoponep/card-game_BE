@@ -94,6 +94,29 @@ class EloRewardController {
             });
         }
     }
+
+    /**
+     * Lấy lịch sử nhận thưởng ELO
+     * GET /elo-reward/history
+     */
+    static async getHistory(req, res) {
+        try {
+            const userId = req.user.userId;
+            
+            const history = await EloRewardService.getRewardHistory(userId);
+            
+            res.json({
+                success: true,
+                data: history
+            });
+        } catch (error) {
+            console.error('Error in getHistory:', error);
+            res.status(500).json({
+                success: false,
+                message: error.message || 'Lỗi khi lấy lịch sử nhận thưởng'
+            });
+        }
+    }
 }
 
 export default EloRewardController;
