@@ -1,8 +1,6 @@
-// controller/ReportController.js
 import ReportService from '../service/ReportService.js';
 import { getUserChatHistoryJSON } from '../socket/chatService.js';
-import ChatModerationAIService from '../service/ChatModerationAIService.js'; // Import thêm service AI
-import db from '../model/DatabaseConnection.js';
+import ChatModerationAIService from '../service/ChatModerationAIService.js';
 import Report from '../model/Report.js';
 
 class ReportController {
@@ -40,7 +38,7 @@ class ReportController {
       }
 
       // 2. AI Phân tích
-      let aiAnalysis = null;
+      let aiAnalysis = null; 
       let aiVerdict = 'pending';
 
       if (chatHistoryArray.length > 0) {
@@ -67,43 +65,62 @@ class ReportController {
           aiAnalysis = "No chat history.";
       }
 
-      // 3. Lưu vào DB (Bảng Report)
-      const newReport = new Report({
-          reporter_id,
-          reported_id,
-          type,
-          reason,
-          chat_history,
-          ai_analysis: aiAnalysis,
+      // 3. Gọi Service
+      const result = await ReportService.createReport({
+          reporter_id, reported_id, type, reason, 
+          chat_history, 
+          ai_analysis: aiAnalysis, 
           ai_verdict: aiVerdict
       });
-      await newReport.save();
-
-      // 4. LOGIC MỚI: Chỉ cộng violation_count nếu AI xác nhận vi phạm
-      if (aiVerdict === 'violation_detected') {
-          // Cộng điểm vi phạm
-          await db.query(
-              'UPDATE User SET violation_count = violation_count + 1 WHERE user_id = ?',
-              [reported_id]
-          );
-
-          // Kiểm tra để Ban user (nếu >= 3 lần)
-          const userRows = await db.query('SELECT violation_count FROM User WHERE user_id = ?', [reported_id]);
-          if (userRows[0] && userRows[0].violation_count >= 3) {
-              await db.query('UPDATE User SET banned = 1 WHERE user_id = ?', [reported_id]);
-              console.log(`User ${reported_id} has been AUTO BANNED.`);
-          }
-      }
 
       return res.status(201).json({
         success: true,
         message: 'Report created',
-        data: newReport,
+        data: result.report,
         ai_result: aiVerdict
       });
 
     } catch (error) {
       console.error('Error creating report:', error);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  // API: Cập nhật verdict (Admin sửa)
+  static async updateVerdict(req, res) {
+    try {
+        const { reportId } = req.params;
+        const { verdict } = req.body; 
+
+        if (!['violation_detected', 'clean', 'pending'].includes(verdict)) {
+            return res.status(400).json({ success: false, message: 'Trạng thái không hợp lệ' });
+        }
+
+        await ReportService.updateReportVerdict(reportId, verdict);
+        
+        return res.json({ success: true, message: 'Đã cập nhật đánh giá và tính lại trạng thái người chơi' });
+    } catch (error) {
+        console.error('Update verdict error:', error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  // API: Xóa báo cáo
+  static async deleteReport(req, res) {
+    try {
+      const { reportId } = req.params;
+      const db = (await import('../model/DatabaseConnection.js')).default;
+
+      // Xóa trong bảng Report
+      const result = await db.query('DELETE FROM Report WHERE report_id = ?', [reportId]);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ success: false, message: 'Không tìm thấy báo cáo để xóa' });
+      }
+
+      return res.json({ success: true, message: 'Đã xóa báo cáo thành công' });
+    } catch (error) {
+      console.error('Delete report error:', error);
       return res.status(500).json({ success: false, message: error.message });
     }
   }
