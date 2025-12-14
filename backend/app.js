@@ -11,7 +11,7 @@ import rateLimit from 'express-rate-limit';
 
 import rankingRoute from './route/RankingRoute.js';
 import roomRoute from './route/roomRoute.js';
-import authRoute from './route/AuthRoute.js';
+import authRoute from './route/authRoute.js';
 import dailyRewardRoute from './route/DailyRewardRoute.js';
 import eloRewardRoute from './route/EloRewardRoute.js';
 import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
