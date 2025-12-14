@@ -347,6 +347,17 @@ export default class AuthController {
 
       const userId = result.insertId;
 
+      // Nếu có refCode, tiến hành activate referral
+      const { refCode } = req.body;
+      if (refCode) {
+        try {
+          const ReferralService = (await import('../service/ReferralService.js')).default;
+          await ReferralService.activateReferral({ refCode, refereeId: userId });
+        } catch (err) {
+          console.error('Referral activate error:', err);
+        }
+      }
+
       res.json({ 
         success: true, 
         message: 'Đăng ký thành công',

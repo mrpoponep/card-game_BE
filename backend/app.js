@@ -23,8 +23,7 @@ import paymentRoutes from "./route/paymentRoutes.js";
 import adminRoute from './route/adminRoute.js';
 import reportRoute from './route/ReportRoute.js';
 import tableRoutes from './route/tableRoutes.js';
-
-
+import referralRoute from './route/ReferralRoute.js';
 
 const app = express();
 
@@ -196,6 +195,8 @@ app.use((req, res, next) => {
     '/avatar',
     '/api/payment/vnpay_return',  // Chỉ mở callback return từ VNPay (không có auth header)
     '/api/payment/vnpay_ipn',     // Chỉ mở IPN webhook từ VNPay (không có auth header)
+    '/api/referral/track-click',  // Public endpoint for tracking referral clicks
+    '/api/referral/validate-link', // Public endpoint for validating referral links
     '/api/admin',  // Admin routes (chỉ development - có devOnly middleware trong route)
   ];
   // Nếu path bắt đầu bằng 1 trong các openAuthPaths thì bỏ qua xác thực
@@ -217,6 +218,7 @@ app.use('/api/admin', adminRoute); // Admin endpoints for testing
 app.use('/api/lucky-wheel', luckyWheelRoute); // Lucky wheel routes
 app.use('/api/reports', reportRoute);
 app.use('/api/tables', tableRoutes);
+app.use('/api/referral', referralRoute);
 
 
 // (room routes consolidated in /api/room via roomRoute)
