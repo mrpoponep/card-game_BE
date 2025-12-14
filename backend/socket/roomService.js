@@ -285,6 +285,60 @@ async function handleLeaveRoom(io, socket) {
 }
 
 export function register(io, socket) {
+  // Quick-join matchmaking: find a public-ish room with players or create one
+  // Optional payload: { excludeRoomCode }
+  socket.on('quickJoin', async (payload = {}) => {
+    try {
+      const exclude = payload?.excludeRoomCode;
+      // Priority 1: rooms with players and available seats
+      let target = null;
+      for (const code in roomState) {
+        const room = roomState[code];
+        if (!room || !room.settings) continue;
+        if (exclude && code === exclude) continue; // skip excluded
+        const occupied = room.seats.filter(p => p).length;
+        const emptyIndex = room.seats.indexOf(null);
+        if (occupied > 0 && emptyIndex > -1) {
+          target = { code, settings: room.settings };
+          break;
+        }
+      }
+
+      // Priority 2: rooms waiting/countdown even if empty seat exists
+      if (!target) {
+        for (const code in roomState) {
+          const room = roomState[code];
+          if (!room || !room.settings) continue;
+          if (exclude && code === exclude) continue;
+          const emptyIndex = room.seats.indexOf(null);
+          if (emptyIndex > -1 && ['waiting','countdown'].includes(room.gameState?.status)) {
+            target = { code, settings: room.settings };
+            break;
+          }
+        }
+      }
+
+      // Priority 3: create a new public room
+      if (!target) {
+        const generateRoomCode = () => Math.floor(1000 + Math.random() * 9000).toString();
+        let roomCode;
+        do { roomCode = generateRoomCode(); } while (roomState[roomCode]);
+        const maxPlayers = 4;
+        const smallBlind = 1000;
+        roomState[roomCode] = {
+          seats: Array(maxPlayers).fill(null),
+          settings: { max_players: maxPlayers, small_blind: smallBlind },
+          gameState: { status: 'waiting' },
+          timerId: null
+        };
+        target = { code: roomCode, settings: roomState[roomCode].settings };
+      }
+
+      socket.emit('quickJoinResult', { roomCode: target.code, settings: target.settings });
+    } catch (e) {
+      try { socket.emit('error', { message: 'Không thể tìm phòng phù hợp' }); } catch {}
+    }
+  });
   socket.on('joinRoom', async ({ roomCode, settings }) => {
     const user = socket.user;
     if (!user || !roomCode) return;
