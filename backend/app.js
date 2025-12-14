@@ -1,4 +1,3 @@
-// Load environment variables FIRST before any other imports
 import './config/dotenv-config.js';
 
 import express from 'express';
@@ -10,7 +9,6 @@ import cookieParser from 'cookie-parser';
 import { authenticateJWT } from './middleware/auth.js';
 import rateLimit from 'express-rate-limit';
 
-// Import routes
 import rankingRoute from './route/RankingRoute.js';
 import roomRoute from './route/roomRoute.js';
 import authRoute from './route/AuthRoute.js';
@@ -18,35 +16,31 @@ import dailyRewardRoute from './route/DailyRewardRoute.js';
 import eloRewardRoute from './route/EloRewardRoute.js';
 import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
 import monthlyRewardRoute from './route/MonthlyRewardRoute.js';
+import luckyWheelRoute from './route/luckyWheelRoute.js';
 import paymentRoutes from "./route/paymentRoutes.js";
-import admin from './route/adminRoutes.js';
+import adminRoutes from './route/adminRoutes.js'; 
 import listRoomsRoute from './route/listRoomsRoute.js';
 import bannedPlayerRoute from './route/BannedPlayerRoutes.js';
 import aiReportRoutes from './route/AIReportRoutes.js';
 import userRoutes from './route/UserRoutes.js';
 import reportRoute from './route/ReportRoute.js';
 import tableRoutes from './route/tableRoutes.js';
-
-
+import referralRoute from './route/ReferralRoute.js';
 
 const app = express();
 
-// Cấu hình __dirname cho ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configure CORS for Express
 app.use(cors({
-  origin: "http://localhost:5173", // Vite default port
+  origin: "http://localhost:5173", 
   credentials: true
 }));
 
-// Basic middleware
-app.use(express.json());               // Cho JSON data
-app.use(express.urlencoded({ extended: true })); // Cho form-urlencoded
+app.use(express.json());               
+app.use(express.urlencoded({ extended: true })); 
 app.use(cookieParser());
 
-// Rate limit: Chỉ apply trong production, tắt trong development
 const isDev = process.env.NODE_ENV === 'development';
 
 if (!isDev) {
@@ -58,21 +52,16 @@ if (!isDev) {
     legacyHeaders: false,
   });
   app.use('/api', apiLimiter);
-  console.log('✅ Rate limiting enabled (production mode)');
 } else {
-  console.log('⚠️  Rate limiting disabled (development mode)');
 }
 
-// Thư mục các file public
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// Fallback cho avatar mặc định nếu file không tồn tại
 app.get('/avatar/*', (req, res) => {
   const requestedPath = req.params[0]; // Lấy phần sau /avatar/ (không có đuôi)
 
   const avatarDir = path.join(__dirname, '..', 'public', 'avatar');
 
-  // Lấy danh sách files trong thư mục avatar
   let files;
   try {
     files = fs.readdirSync(avatarDir);
@@ -81,14 +70,12 @@ app.get('/avatar/*', (req, res) => {
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 
-  // Tìm file có tên bắt đầu bằng requestedPath + '.'
   const matchingFile = files.find(file => file.startsWith(requestedPath + '.'));
 
   if (matchingFile) {
     const fullPath = path.join(avatarDir, matchingFile);
     return res.sendFile(fullPath);
   } else {
-    // Trả về avatar mặc định
     const defaultPath = path.join(avatarDir, 'default.png');
     if (fs.existsSync(defaultPath)) {
       return res.sendFile(defaultPath);
@@ -98,12 +85,10 @@ app.get('/avatar/*', (req, res) => {
   }
 });
 
-// 🔍 Request & Response logger middleware
 app.use((req, res, next) => {
   const startTime = Date.now();
   const timestamp = new Date().toISOString();
 
-  // Log request
   console.log('\n' + '='.repeat(60));
   console.log(`📥 REQUEST [${timestamp}] ${req.method} ${req.originalUrl || req.url}`);
   console.log('📍 IP:', req.ip || req.connection.remoteAddress);
@@ -126,7 +111,6 @@ app.use((req, res, next) => {
     'origin': req.headers.origin
   });
 
-  // Hook vào response để log khi hoàn thành
   const originalSend = res.send;
   let responseBody = null;
 
@@ -155,10 +139,8 @@ app.use((req, res, next) => {
           bodyObj = responseBody;
         }
 
-        // Format JSON với indentation đẹp
         const formatted = JSON.stringify(bodyObj, null, 2);
 
-        // Nếu quá dài (>1000 chars), truncate nhưng vẫn giữ format
         if (formatted.length > 1000) {
           const lines = formatted.split('\n');
           const preview = lines.slice(0, 20).join('\n');
@@ -180,15 +162,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
 app.get('/', (req, res) => {
   res.json({ message: 'Card Game Server is running' });
 });
 
-// API Routes
 app.use('/api/auth', authRoute);
 
-// Bảo vệ tất cả các route /api ngoại trừ /api/auth/login, /api/auth/refresh, /api/auth/logout
 app.use((req, res, next) => {
   const openAuthPaths = [
     '/api/auth/login',
@@ -197,8 +176,11 @@ app.use((req, res, next) => {
     '/api/auth/verify-otp-reset-password',
     '/api/auth/register',  // Cho phép đăng ký
     '/avatar',
-    '/api/payment/vnpay_return',  // Chỉ mở callback return từ VNPay (không có auth header)
-    '/api/payment/vnpay_ipn',     // Chỉ mở IPN webhook từ VNPay (không có auth header)
+    '/api/payment/vnpay_return',  // Chỉ mở callback return từ VNPay
+    '/api/payment/vnpay_ipn',     // Chỉ mở IPN webhook từ VNPay
+    '/api/referral/track-click',  // Public endpoint referral
+    '/api/referral/validate-link', // Public endpoint referral
+    '/api/admin',  // Admin routes (Route này tự quản lý auth hoặc devOnly bên trong file adminRoutes)
   ];
   // Nếu path bắt đầu bằng 1 trong các openAuthPaths thì bỏ qua xác thực
   if (openAuthPaths.some(path => req.path === path || req.path.startsWith(path + '/'))) {
@@ -213,19 +195,17 @@ app.use('/api/daily-reward', dailyRewardRoute);
 app.use('/api/elo-reward', eloRewardRoute);
 app.use('/api/weekly-reward', weeklyRewardRoute);
 app.use('/api/monthly-reward', monthlyRewardRoute);
+app.use('/api/lucky-wheel', luckyWheelRoute);
 app.use('/api/payment', paymentRoutes);
-app.use('/api/admin', admin);
+app.use('/api/admin', adminRoutes); // Sử dụng file route đã gộp
 app.use('/api/listRoom', listRoomsRoute);
 app.use('/api/ban', bannedPlayerRoute);
 app.use('/api/ban/ai', authenticateJWT, aiReportRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/reports', reportRoute);
 app.use('/api/tables', tableRoutes);
+app.use('/api/referral', referralRoute);
 
-
-// (room routes consolidated in /api/room via roomRoute)
-
-// DEBUG: danh sách routes hiện tại (tạm thời, để debug)
 app.get('/__routes', (req, res) => {
   try {
     const routes = [];

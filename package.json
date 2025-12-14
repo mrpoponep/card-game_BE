@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "cross-env NODE_ENV=production node backend/server.js",
+    "start": "cross-env NODE_ENV=development nodemon backend/server.js",
     "dev": "cross-env NODE_ENV=development nodemon backend/server.js",
     "test:db": "cross-env NODE_ENV=test node tests/DbTest.js",
     "test:quick": "cross-env NODE_ENV=test node tests/QuickDbTest.js",
@@ -34,7 +34,8 @@
     "pg-hstore": "^2.3.4",
     "pokersolver": "^2.1.4",
     "sequelize": "^6.37.7",
-    "socket.io": "^4.8.0"
+    "socket.io": "^4.8.0",
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",

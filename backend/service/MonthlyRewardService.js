@@ -175,6 +175,36 @@ class MonthlyRewardService {
     
     return { monthYear, year, month };
   }
+
+  /**
+   * Lấy lịch sử nhận thưởng tháng
+   * @param {number} userId 
+   * @returns {Promise<Array>}
+   */
+  static async getRewardHistory(userId) {
+    try {
+      const history = await db.query(
+        `SELECT 
+          MONTH(STR_TO_DATE(CONCAT(month_year, '-01'), '%Y-%m-%d')) as month,
+          YEAR(STR_TO_DATE(CONCAT(month_year, '-01'), '%Y-%m-%d')) as year,
+          rank_at_claim as \`rank\`,
+          gems_received as gems_reward,
+          elo_at_claim,
+          month_year,
+          claimed_at
+        FROM monthly_reward_claims 
+        WHERE user_id = ? AND claimed_at IS NOT NULL
+        ORDER BY claimed_at DESC
+        LIMIT 100`,
+        [userId]
+      );
+
+      return history;
+    } catch (error) {
+      console.error('Error getting monthly reward history:', error);
+      throw error;
+    }
+  }
 }
 
 export default MonthlyRewardService;

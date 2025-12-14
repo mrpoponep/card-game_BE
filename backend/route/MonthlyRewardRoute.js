@@ -9,4 +9,7 @@ router.post('/check', MonthlyRewardController.checkMonthlyReward);
 // Nhận phần thưởng tháng
 router.post('/claim', MonthlyRewardController.claimMonthlyReward);
 
+// Lấy lịch sử nhận thưởng tháng
+router.get('/history', MonthlyRewardController.getHistory);
+
 export default router;
