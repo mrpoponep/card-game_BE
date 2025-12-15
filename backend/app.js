@@ -11,7 +11,7 @@ import rateLimit from 'express-rate-limit';
 
 import rankingRoute from './route/RankingRoute.js';
 import roomRoute from './route/roomRoute.js';
-import authRoute from './route/authRoute.js';
+import authRoute from './route/authRoutes.js';
 import dailyRewardRoute from './route/DailyRewardRoute.js';
 import eloRewardRoute from './route/EloRewardRoute.js';
 import weeklyRewardRoute from './route/WeeklyRewardRoute.js';
@@ -33,7 +33,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 app.use(cors({
-  origin: "http://localhost:3000", 
+  origin: ['http://localhost:5173', 'http://localhost:3000'],
   credentials: true
 }));
 

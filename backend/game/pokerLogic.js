@@ -420,7 +420,7 @@ export async function resolveShowdown(room, io, broadcastFunc, onGameEnd) {
 
     const winnerIds = [winner.user_id];
     const deltas = await computeEloChanges(winnerIds, userIds);
-    await saveGameHistory(room.settings.table_id || 0, deltas);
+    await saveGameHistory(room.roomCode, deltas);
     broadcastFunc(io, room.roomCode || room.roomId);
     if (onGameEnd) await onGameEnd(); 
     return;
@@ -459,7 +459,7 @@ export async function resolveShowdown(room, io, broadcastFunc, onGameEnd) {
     return p.user_id;
   });
   const deltas = await computeEloChanges(winnerIds, userIds);
-  await saveGameHistory(room.settings.table_id || 0, deltas);
+  await saveGameHistory(room.roomCode, deltas);
   room.gameState.lastAction = `Ván đấu kết thúc. ${winnerDetails.map(w => w.username).join(', ')} thắng!`;
 
   io.to(room.roomCode || room.roomId).emit('game:result', {
