@@ -58,7 +58,7 @@ class User {
     // Rank = số người có ELO STRICTLY GREATER + 1
     // Ví dụ: 2 người ELO 2500 (rank 1), 1 người ELO 2000 (rank 3)
     const result = await db.query(
-      "SELECT COUNT(*) + 1 AS 'rank' FROM user WHERE elo > ? AND banned = false",
+      "SELECT COUNT(*) + 1 AS 'rank' FROM User WHERE elo > ? AND banned = false",
       [this.elo]
     );
     return result[0].rank;
@@ -87,7 +87,7 @@ class User {
 
   // 🗄️ STATIC DATABASE METHODS (Đã sửa lỗi)
   static async findById(user_id) {
-    const dbRow = (await db.query('SELECT * FROM user WHERE user_id = ?', [user_id]))[0];
+    const dbRow = (await db.query('SELECT * FROM User WHERE user_id = ?', [user_id]))[0];
     if (dbRow) {
       return new User(dbRow); // Trả về instance User, không gọi lại findById
     }
@@ -95,7 +95,7 @@ class User {
   }
 
   static async findByName(name) {
-    const dbRow = (await db.query('SELECT * FROM user WHERE username = ?', [name]))[0];
+    const dbRow = (await db.query('SELECT * FROM User WHERE username = ?', [name]))[0];
     if (dbRow) {
       return new User(dbRow); // Trả về instance User
     }
@@ -105,14 +105,14 @@ class User {
   // (Các hàm khác giữ nguyên cấu trúc nhưng đảm bảo chúng hoạt động với constructor mới)
   static async listRankings(limit = 100) {
     const dbRows = await db.query(
-      `SELECT * FROM user WHERE banned = false ORDER BY elo DESC LIMIT ${limit}`
+      `SELECT * FROM User WHERE banned = false ORDER BY elo DESC LIMIT ${limit}`
     );
     return dbRows.map(row => new User(row));
   }
 
   //tổng người chơi không bị banned
   static async getTotalCount() {
-    const sql = 'SELECT COUNT(*) AS total FROM user WHERE banned = false';
+    const sql = 'SELECT COUNT(*) AS total FROM User WHERE banned = false';
     try {
       const rows = await db.query(sql);
       return rows[0].total;
@@ -124,7 +124,7 @@ class User {
 
   //tổng người chơi bị banned
   static async getTotalBannedCount() {
-    const sql = 'SELECT COUNT(*) AS totalBanned FROM user WHERE banned = true';
+    const sql = 'SELECT COUNT(*) AS totalBanned FROM User WHERE banned = true';
     try {
       const rows = await db.query(sql);
       return rows[0].totalBanned;
@@ -139,7 +139,7 @@ class User {
    */
   static async insertIntoDatabase(user) {
     const query = `
-      INSERT INTO user (username, password, elo, avatar_url, balance, banned)
+      INSERT INTO User (username, password, elo, avatar_url, balance, banned)
       VALUES (?, ?, ?, ?, ?, ?)
     `;
     const result = await db.query(query, [
@@ -156,7 +156,7 @@ class User {
 
   static async updateInDatabase(user) {
     const query = `
-      UPDATE user
+      UPDATE User
       SET username = ?, password = ?, elo = ?, balance = ?, banned = ?, avatar_url = ?
       WHERE user_id = ?
     `;
@@ -180,7 +180,7 @@ class User {
 
     // Atomic update để tránh race condition
     const query = `
-      UPDATE user 
+      UPDATE User 
       SET balance = balance + ? 
       WHERE user_id = ?
     `;

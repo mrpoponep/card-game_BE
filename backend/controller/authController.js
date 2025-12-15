@@ -98,6 +98,9 @@ export default class AuthController {
     const sessionId = req.get('x-session-id') || null;
     const cookieName = sessionId ? `refresh_token_${sessionId}` : 'refresh_token';
     const refreshToken = req.cookies?.[cookieName];
+    console.log('SessionId:', sessionId);
+    console.log('Cookie name:', cookieName);
+    console.log('refresh Token:', refreshToken);
     if (!refreshToken) {
       return res.status(401).json({ success: false, message: 'Thiếu refresh token' });
     }
