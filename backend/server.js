@@ -37,7 +37,7 @@ server.listen(PORT, () => {
 
   console.log('--- ⚙️ THÔNG TIN CẤU HÌNH SERVER ---');
   console.log(`[APP] PORT: ${PORT}`);
-  console.log(`[CORS] CLIENT_URL: ${process.env.CLIENT_URL || "http://localhost:5173"}`);
+  console.log(`[CORS] CLIENT_URL: ${process.env.CLIENT_URL || "http://localhost:3000"}`);
   console.log(`[DB] DB_HOST: ${process.env.DB_HOST}`);
   console.log(`[DB] DB_NAME: ${process.env.DB_NAME}`);
 
