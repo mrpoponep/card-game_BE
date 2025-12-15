@@ -1,4 +1,5 @@
 import pokersolver from 'pokersolver';
+import db from '../model/DatabaseConnection.js';
 const { Hand } = pokersolver;
 
 const SB_AMOUNT = 50;
@@ -139,11 +140,11 @@ export function advanceTurn(room) {
 }
 
 // Hàm mới: Tự động chạy hết các vòng khi All-in
-function autoRunToShowdown(room, io, broadcastFunc, onGameEnd) {
+async function autoRunToShowdown(room, io, broadcastFunc, onGameEnd) {
     const stages = ["preflop", "flop", "turn", "river", "showdown"];
     
     // Hàm đệ quy để chạy từng stage có delay (tạo hiệu ứng chia bài)
-    const runNextStep = () => {
+    const runNextStep = async () => {
         const currentStage = room.gameState.stage;
         
         if (currentStage === 'finished' || currentStage === 'showdown') {
@@ -151,25 +152,25 @@ function autoRunToShowdown(room, io, broadcastFunc, onGameEnd) {
         }
 
         // Chuyển sang stage tiếp theo
-        nextStage(room, io, broadcastFunc, onGameEnd);
+        await nextStage(room, io, broadcastFunc, onGameEnd);
 
         // Nếu chưa xong (chưa đến showdown), tiếp tục gọi đệ quy sau 1s
         if (room.gameState.stage !== 'finished') {
-            setTimeout(() => {
-                runNextStep();
+            setTimeout(async () => {
+                await runNextStep();
             }, 1500); // Delay 1.5s giữa các lần chia bài
         }
     };
 
     // Bắt đầu chạy
-    runNextStep();
+    await runNextStep();
 }
 
-export function checkAdvanceStage(room, io, broadcastFunc, onGameEnd) {
+export async function checkAdvanceStage(room, io, broadcastFunc, onGameEnd) {
   const activePlayers = room.seats.filter(p => p && p.inHand && !p.folded);
   
   if (activePlayers.length === 1) {
-    resolveShowdown(room, io, broadcastFunc, onGameEnd);
+    await resolveShowdown(room, io, broadcastFunc, onGameEnd);
     return true;
   }
 
@@ -194,24 +195,24 @@ export function checkAdvanceStage(room, io, broadcastFunc, onGameEnd) {
         
         // Gọi hàm tự động chia bài
         setTimeout(() => {
-            autoRunToShowdown(room, io, broadcastFunc, onGameEnd);
+          autoRunToShowdown(room, io, broadcastFunc, onGameEnd).catch(err => console.error('autoRunToShowdown error', err));
         }, 1000);
         return true;
     }
 
-    nextStage(room, io, broadcastFunc, onGameEnd);
+    await nextStage(room, io, broadcastFunc, onGameEnd);
     return true;
   }
 
   return false;
 }
 
-export function nextStage(room, io, broadcastFunc, onGameEnd) {
+export async function nextStage(room, io, broadcastFunc, onGameEnd) {
   const order = ["preflop", "flop", "turn", "river", "showdown"];
   const currentIdx = order.indexOf(room.gameState.stage);
   
   if (currentIdx === -1 || currentIdx === order.length - 1) {
-    resolveShowdown(room, io, broadcastFunc, onGameEnd);
+    await resolveShowdown(room, io, broadcastFunc, onGameEnd);
     return;
   }
 
@@ -223,7 +224,7 @@ export function nextStage(room, io, broadcastFunc, onGameEnd) {
   } else if (nextStageName === "turn" || nextStageName === "river") {
     room.gameState.community.push(room.deck.pop());
   } else if (nextStageName === "showdown") {
-    resolveShowdown(room, io, broadcastFunc, onGameEnd);
+    await resolveShowdown(room, io, broadcastFunc, onGameEnd);
     return;
   }
 
@@ -241,7 +242,7 @@ export function nextStage(room, io, broadcastFunc, onGameEnd) {
 }
 
 // handleAction giữ nguyên logic cũ, không thay đổi gì ở đây
-export function handleAction(room, socketId, action, opts = {}, io, broadcastFunc, onGameEnd) {
+export async function handleAction(room, socketId, action, opts = {}, io, broadcastFunc, onGameEnd) {
   if (room.gameState.status === 'finished') return;
 
   const seatIdx = room.seats.findIndex(p => p && p.socketId === socketId);
@@ -335,34 +336,97 @@ export function handleAction(room, socketId, action, opts = {}, io, broadcastFun
 
   advanceTurn(room);
   
-  const changedStage = checkAdvanceStage(room, io, broadcastFunc, onGameEnd);
+  const changedStage = await checkAdvanceStage(room, io, broadcastFunc, onGameEnd);
   
   if (!changedStage) {
       broadcastFunc(io, room.roomCode || room.roomId);
   }
 }
 
-export function resolveShowdown(room, io, broadcastFunc, onGameEnd) {
+async function computeEloChanges(winner_ids, user_ids) {
+  // --- Save ELO adjustments and Game_History in a single transaction ---
+  let deltas = {};
+
+  // Use DB transaction helper from DatabaseConnection.js
+  let txConn = null;
+  try {
+    // start transaction
+    txConn = await db.beginTransaction();
+    const rows = await db.transactionQuery(txConn, `SELECT user_id, elo FROM User WHERE user_id IN (${user_ids.map(() => '?').join(',')})`, user_ids);
+    const eloMap = {};
+    rows.forEach(r => { eloMap[r.user_id] = Number(r.elo || 0); });
+
+    const clampCelo = (val) => {
+      const v = Math.round(val);
+      if (v < 15) return 15;
+      if (v > 30) return 30;
+      return v;
+    };
+    // compute deltas
+    deltas = {};
+    user_ids.forEach(p => { deltas[p] = 0; });
+
+    for (const winnerId of winner_ids) {
+      const eloW = eloMap[winnerId] || 0;
+      let totalGainForWinner = 0;
+      for (const loserId of user_ids) {
+        if (winner_ids.includes(loserId)) continue;
+        const eloL = eloMap[loserId] || 0;
+        const base = (eloL - eloW) / 4.0;
+        const celo = clampCelo(base);
+        const gain = Math.round(celo);
+        const loss = Math.round(Math.floor(0.8 * gain));
+        totalGainForWinner += gain;
+        deltas[loserId] -= loss; // each loser loses 80% of the gain vs this winner
+      }
+      deltas[winnerId] += totalGainForWinner;
+    }
+    // Apply DB updates within transaction
+    for (const uid of Object.keys(deltas)) {
+      const delta = deltas[uid];
+      if (delta === 0) continue;
+      await db.transactionQuery(txConn, 'UPDATE User SET elo = COALESCE(elo,0) + ? WHERE user_id = ?', [delta, uid]);
+    }
+    await db.commit(txConn);
+    return deltas;
+  } catch (err) {
+    if (txConn) {
+      await db.rollback(txConn);
+      console.error('ELO Debug: transaction rolled back due to error', err);
+    }
+    throw err;
+  } 
+}
+async function saveGameHistory(tableId, deltas) {
+  const result = Object.keys(deltas).join(' ');
+  const eloChange = Object.values(deltas).join(' ');
+  await db.query('INSERT INTO Game_History (table_id, result, elo_change) VALUES (?, ?, ?)', [tableId, result, eloChange]);
+}
+export async function resolveShowdown(room, io, broadcastFunc, onGameEnd) {
   room.gameState.stage = "finished";
   room.gameState.status = "finished";
   room.gameState.toActSeat = null; 
-  
   const activePlayers = room.seats.filter(p => p && p.inHand && !p.folded);
-  
+  const userIds = room.seats.filter(p => p).map(p => p.user_id);
+
   if (activePlayers.length === 1) {
     const winner = activePlayers[0];
     winner.chips += room.gameState.pot;
     room.gameState.lastAction = `${winner.username} thắng ${room.gameState.pot} (địch thủ bỏ bài)`;
-    
+
     io.to(room.roomCode || room.roomId).emit('game:result', {
         winners: [{ userId: winner.user_id, amount: room.gameState.pot, handName: 'Thắng do bỏ bài' }]
     });
-    
+
+    const winnerIds = [winner.user_id];
+    const deltas = await computeEloChanges(winnerIds, userIds);
+    await saveGameHistory(room.settings.table_id || 0, deltas);
     broadcastFunc(io, room.roomCode || room.roomId);
-    if (onGameEnd) onGameEnd(); 
+    if (onGameEnd) await onGameEnd(); 
     return;
   }
 
+  // Solve hands
   const hands = activePlayers.map(p => {
     const cards = [...p.cards, ...room.gameState.community];
     const solved = Hand.solve(cards);
@@ -373,7 +437,8 @@ export function resolveShowdown(room, io, broadcastFunc, onGameEnd) {
   const winners = Hand.winners(hands);
   const winAmount = Math.floor(room.gameState.pot / winners.length);
   const winnerDetails = [];
-
+    
+  // award chips (same as before)
   winners.forEach(hand => {
     const seatIdx = hand.playerIndex;
     const player = room.seats[seatIdx];
@@ -389,6 +454,12 @@ export function resolveShowdown(room, io, broadcastFunc, onGameEnd) {
     });
   });
 
+  const winnerIds = winners.map(h => {
+    const p = room.seats[h.playerIndex];
+    return p.user_id;
+  });
+  const deltas = await computeEloChanges(winnerIds, userIds);
+  await saveGameHistory(room.settings.table_id || 0, deltas);
   room.gameState.lastAction = `Ván đấu kết thúc. ${winnerDetails.map(w => w.username).join(', ')} thắng!`;
 
   io.to(room.roomCode || room.roomId).emit('game:result', {
@@ -396,5 +467,5 @@ export function resolveShowdown(room, io, broadcastFunc, onGameEnd) {
   });
   
   broadcastFunc(io, room.roomCode || room.roomId);
-  if (onGameEnd) onGameEnd();
+  if (onGameEnd) await onGameEnd();
 }
