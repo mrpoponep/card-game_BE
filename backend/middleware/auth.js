@@ -5,6 +5,7 @@ const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'access_secret';
 
 export function authenticateJWT(req, res, next) {
   const authHeader = req.headers['authorization'];
+  console.log(`[AUTH] Header nhận được: ${authHeader}`);
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ success: false, message: 'Bạn cần đăng nhập để sử dụng tính năng này.' });
   }
