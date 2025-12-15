@@ -19,6 +19,25 @@ class UserController {
       return res.status(500).json({ message: 'Lỗi server.' });
     }
   }
-}
 
+  // POST /api/user/upload-avatar
+  static async uploadAvatar(req, res) {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'Không có file được tải lên.' });
+      }
+      const userId = req.user.userId; // Giả sử userId được lấy từ token đã xác thực
+      const avatarPath = "/uploads/avatars/" + userId + ".png"; // Đường dẫn lưu avatar
+
+      // Lưu file đã tải lên vào thư mục server
+      const fs = await import('fs');
+      fs.writeFileSync(`./public/avatar/${userId}.png`, req.file.buffer);
+
+      return res.json({ message: 'Tải lên avatar thành công.', avatarUrl: avatarPath });
+    } catch (err) {
+      console.error('Error upload avatar:', err);
+      return res.status(500).json({ message: 'Lỗi server.' });
+    }
+  }
+}
 export default UserController;

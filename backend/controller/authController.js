@@ -41,7 +41,7 @@ export default class AuthController {
     }
     
     // 3. Tạo access token
-    const accessToken = jwt.sign({ userId: user.user_id, username: user.username, role: user.role }, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
+    const accessToken = jwt.sign({ userId: user.user_id, username: user.username, role: user.role, email: user.email }, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
     // Lưu access token hiện tại cho user (vô hiệu hóa token cũ ngay)
     try {
       setActiveAccessToken(user.user_id, accessToken);
@@ -87,7 +87,7 @@ export default class AuthController {
     }
 
     // 6. Respond: include sessionId so client can persist it (localStorage for remember, sessionStorage for non-remember)
-    const resp = { success: true, accessToken, user: { userId: user.user_id, username: user.username, role: user.role, balance: Math.floor(user.balance) || 0, elo: user.elo }, sessionId };
+    const resp = { success: true, accessToken, user: { userId: user.user_id, username: user.username, role: user.role, balance: Math.floor(user.balance) || 0, elo: user.elo, email: user.email }, sessionId };
     res.json(resp);
   }
 

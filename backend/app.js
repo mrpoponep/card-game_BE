@@ -37,8 +37,16 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json());               
-app.use(express.urlencoded({ extended: true })); 
+// Chỉ áp dụng body parser cho các route không phải upload-avatar
+app.use((req, res, next) => {
+  if (req.path === '/api/user/upload-avatar') {
+    return next();
+  }
+  express.json()(req, res, (err) => {
+    if (err) return next(err);
+    express.urlencoded({ extended: true })(req, res, next);
+  });
+});
 app.use(cookieParser());
 
 const isDev = process.env.NODE_ENV === 'development';
