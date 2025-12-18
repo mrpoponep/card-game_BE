@@ -237,7 +237,7 @@ async function handleLeaveRoom(io, socket) {
       
       // Nếu đang chơi (inHand) mà thoát -> Fold
       if (isPlaying && player.inHand && !player.folded) {
-         PokerGame.handleAction(room, socket.id, 'fold', {}, io, sendFullRoomStateUpdate, () => onGameEnd(io, roomCode));
+        await PokerGame.handleAction(room, socket.id, 'fold', {}, io, sendFullRoomStateUpdate, () => onGameEnd(io, roomCode));
       }
 
       // 3. Xóa khỏi ghế
@@ -267,7 +267,7 @@ async function handleLeaveRoom(io, socket) {
         });
         
         // Gọi onGameEnd để xử lý luồng kết thúc chuẩn (check tiền, đếm ngược ván mới)
-        onGameEnd(io, roomCode);
+        await onGameEnd(io, roomCode);
         
       } else if (activePlayers.length < 2 && room.gameState.status !== 'playing' && room.gameState.status !== 'finished') {
           // Nếu đang chờ/đếm ngược mà còn < 2 người -> Reset
@@ -342,7 +342,7 @@ export function register(io, socket) {
   socket.on('joinRoom', async ({ roomCode, settings }) => {
     const user = socket.user;
     if (!user || !roomCode) return;
-
+    if (socket.rooms.has(roomCode)) return; // already in room
     socket.join(roomCode);
 
     let isSpectator = false;
@@ -420,10 +420,10 @@ export function register(io, socket) {
   });
 
   socket.on('disconnect', () => {
-    handleLeaveRoom(io, socket);
+    (async () => { try { await handleLeaveRoom(io, socket); } catch (e) { console.error('handleLeaveRoom on disconnect error', e); } })();
   });
 
-  socket.on('playerAction', ({ action, amount }) => {
+  socket.on('playerAction', async ({ action, amount }) => {
       let currentRoomCode = null;
       for(const code in roomState) {
           if (roomState[code].seats.some(s => s && s.socketId === socket.id)) {
@@ -433,16 +433,16 @@ export function register(io, socket) {
       }
 
       if (currentRoomCode) {
-          const room = roomState[currentRoomCode];
-          PokerGame.handleAction(
-              room, 
-              socket.id, 
-              action, 
-              { amount }, 
-              io, 
-              sendFullRoomStateUpdate, 
-              () => onGameEnd(io, currentRoomCode)
-          );
+        const room = roomState[currentRoomCode];
+        await PokerGame.handleAction(
+          room,
+          socket.id,
+          action,
+          { amount },
+          io,
+          sendFullRoomStateUpdate,
+          () => onGameEnd(io, currentRoomCode)
+        );
       }
   });
 }

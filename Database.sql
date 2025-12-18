@@ -65,13 +65,9 @@ CREATE TABLE Table_Info (
 CREATE TABLE Game_History (
                               game_id INT AUTO_INCREMENT PRIMARY KEY,
                               table_id INT NOT NULL,
-                              game_type VARCHAR(50),
                               time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                              winner INT,
-                              FOREIGN KEY (table_id) REFERENCES Table_Info(table_id)
-                                  ON DELETE CASCADE ON UPDATE CASCADE,
-                              FOREIGN KEY (winner) REFERENCES User(user_id)
-                                  ON DELETE SET NULL ON UPDATE CASCADE
+                              result TEXT,
+                              elo_change TEXT,
 );
 
 -- ===========================================================
@@ -685,11 +681,6 @@ INSERT INTO Table_Info (
 )
 VALUES
     ('1234', 2, 6, 2.5, 5.0, 2000, 10000, 0.05, TRUE, 'waiting', 1);
-
--- Lịch sử game
-INSERT INTO Game_History (table_id, game_type, winner)
-VALUES (1, 'Texas Hold\'em', 1);
-
 
 ALTER TABLE Report
 ADD COLUMN ai_analysis TEXT DEFAULT NULL COMMENT 'Kết quả phân tích từ AI',

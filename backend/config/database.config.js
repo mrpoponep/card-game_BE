@@ -41,7 +41,7 @@ export const dbConfig = {
 export const environments = {
   development: {
     ...dbConfig,
-    database: 'poker_system',
+    database: 'poker_system_dev',
     debug: true
   },
 
@@ -63,5 +63,4 @@ export const environments = {
 // Get current environment config
 const env = process.env.NODE_ENV || 'development';
 export const currentConfig = environments[env] || environments.development;
-
 export default currentConfig;
