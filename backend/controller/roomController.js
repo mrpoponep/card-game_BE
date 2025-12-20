@@ -67,7 +67,7 @@ export const findRoom = async (req, res) => {
   const role = req.user?.role;
 
   try {
-    const rows = await db.query("SELECT * FROM table_info WHERE room_code = ?", [code]);
+    const rows = await db.query("SELECT * FROM Table_Info WHERE room_code = ?", [code]);
     if (!rows || rows.length === 0) return res.status(404).json({ message: 'Không tìm thấy phòng!' });
 
     const room = rows[0];

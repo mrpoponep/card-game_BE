@@ -69,7 +69,7 @@ export const updateTableById = async (tableId, payload = {}) => {
   values.push(tableId);
 
   const sql = `
-    UPDATE table_info
+    UPDATE Table_Info
        SET ${fields.join(', ')}
      WHERE table_id = ?
     LIMIT 1

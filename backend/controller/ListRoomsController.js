@@ -29,7 +29,7 @@ export async function getRoomList(req, res) {
 // GET detail 1 bàn
 export async function getTableById(req, res) {
   const id = Number(req.params.id);
-  const rows = await db.query("SELECT * FROM table_info WHERE table_id = ?", [id]);
+  const rows = await db.query("SELECT * FROM Table_Info WHERE table_id = ?", [id]);
   return rows?.[0]
     ? res.json({ success: true, table: rows[0] })
     : res.status(404).json({ success: false, message: "Không tìm thấy bàn" });
@@ -66,7 +66,7 @@ export const updateTable = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy bàn hoặc không có gì để cập nhật.' });
     }
 
-    const rows = await db.query(`SELECT * FROM table_info WHERE table_id = ?`, [tableId]);
+    const rows = await db.query(`SELECT * FROM Table_Info WHERE table_id = ?`, [tableId]);
     return res.json({ success: true, table: rows?.[0] || null });
   } catch (err) {
     console.error('updateTable error:', err);

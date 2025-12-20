@@ -225,7 +225,7 @@ class DatabaseConnection {
     await this.query('TRUNCATE TABLE user');
     await this.query('TRUNCATE TABLE appeal');
     await this.query('TRUNCATE TABLE banned_player');
-    await this.query('TRUNCATE TABLE table_info');
+    await this.query('TRUNCATE TABLE Table_Info');
     await this.query('TRUNCATE TABLE transactions');
     await this.query('TRUNCATE TABLE game_history');
     await this.query('SET FOREIGN_KEY_CHECKS = 1');

@@ -7,7 +7,7 @@ const generateRoomCode = () => {
 
 const isRoomCodeExists = async (code) => {
   const rows = await db.query(
-    'SELECT COUNT(*) AS count FROM table_info WHERE room_code = ?',
+    'SELECT COUNT(*) AS count FROM Table_Info WHERE room_code = ?',
     [code]
   );
   if (!rows || rows.length === 0) return false; // ✅ tránh lỗi undefined
@@ -35,7 +35,7 @@ export const createTable = async (
 
   // Thực hiện insert
   const result = await db.query(
-    `INSERT INTO table_info (
+    `INSERT INTO Table_Info (
     room_code, min_players, max_players, small_blind, max_blind,
     min_buy_in, max_buy_in, rake, is_private, created_by
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -55,7 +55,7 @@ export const createTable = async (
 
   // Lấy TOÀN BỘ thông tin bàn vừa tạo, thay vì chỉ 3 trường
   const rows = await db.query(
-    `SELECT * FROM table_info WHERE table_id = ?`, // Dùng SELECT *
+    `SELECT * FROM Table_Info WHERE table_id = ?`, // Dùng SELECT *
     [result.insertId]
   );
 
@@ -72,7 +72,7 @@ export const listTables = async (isPrivate = false) => {
     const sql = `
     SELECT table_id, room_code, min_players, max_players, small_blind, max_blind,
            min_buy_in, max_buy_in, rake, is_private, status, created_by
-    FROM table_info
+    FROM Table_Info
     WHERE is_private = ?
     ORDER BY table_id DESC
   `;
@@ -92,7 +92,7 @@ export const getTableMetrics = async () => {
       SUM(CASE WHEN is_private = false THEN 1 ELSE 0 END) AS publicTables,
       SUM(CASE WHEN is_private = true THEN 1 ELSE 0 END) AS privateTables,
       SUM(CASE WHEN status = 'playing' THEN 1 ELSE 0 END) AS activeTables
-   FROM table_info
+   FROM Table_Info
   `;
   try {
     const rows = await db.query(sql);
