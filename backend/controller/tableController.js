@@ -12,11 +12,11 @@ export const getPublicTables = async (req, res) => {
 
         // Map level sang range min_buy_in
         const levelRanges = {
-            'beginner': { min: 0, max: 5000 },       // Tập Sự: <= 5K
-            'amateur': { min: 5001, max: 10000 },    // Nghiệp Dư: 5K-10K
-            'pro': { min: 10001, max: 20000 },       // Chuyên Nghiệp: 10K-20K
-            'master': { min: 20001, max: 999999 }    // Master: > 20K
-        };
+            'beginner': { min: 20001, max: 50000 },       // Tập Sự: <= 50K
+            'amateur': { min: 50001, max: 100000 },    // Nghiệp Dư: 50K-100K
+            'pro': { min: 100001, max: 200000 },       // Chuyên Nghiệp: 100K-200K
+            'master': { min: 200001, max: 999999 }    // Master: > 200K
+        }
 
         let tables;
         if (level === 'all') {
@@ -180,7 +180,6 @@ export const createTable = async (req, res) => {
         const config = levelConfigs[level];
         if (!config) {
             return res.status(400).json({
-                success: false,
                 message: 'Level không hợp lệ'
             });
         }
