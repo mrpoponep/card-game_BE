@@ -88,7 +88,12 @@ class Report {
       throw new Error(`Failed to save report: ${error.message}`);
     }
   }
-  static async listAll(limit = 100, offset = 0) {
+ static async listAll(limit = 100, offset = 0) {
+  try {
+    const safeLimit = parseInt(limit, 10) || 100;
+    const safeOffset = parseInt(offset, 10) || 0;
+
+    // Đưa giá trị trực tiếp vào chuỗi SQL thay vì dùng dấu ?
     const sql = `
       SELECT r.*, 
              u1.username as reporter_name, 
@@ -98,10 +103,16 @@ class Report {
       LEFT JOIN User u1 ON r.reporter_id = u1.user_id
       LEFT JOIN User u2 ON r.reported_id = u2.user_id
       ORDER BY r.created_at DESC
-      LIMIT ? OFFSET ?
+      LIMIT ${safeLimit} OFFSET ${safeOffset}
     `;
-    const rows = await db.query(sql, [limit, offset]);
+
+    // Gọi query không tham số
+    const rows = await db.query(sql); 
     return rows;
+  } catch (error) {
+    throw error;
   }
 }
+}
+
 export default Report;
